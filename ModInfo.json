@@ -1,0 +1,27 @@
+{
+	"defaults": {
+		"authors": "LaryIsland",
+		"source": "https://github.com/LaryIsland/bl-sdk-mods",
+		"issues": "https://github.com/LaryIsland/bl-sdk-mods/issues",
+		"supports": ["BL2", "TPS"],
+		"license": "MIT"
+	},
+	"mods": [
+		{
+			"name": "Spare Parts",
+			"description": ["Allows you to salvage parts from items and attach them to other items."],
+			"tagline": "Salvage parts from items and attach them to other items.",
+			"types": ["Utility"],
+			"supports": ["BL2"],
+			"source": "https://github.com/LaryIsland/bl-sdk-mods/tree/main/SpareParts",
+			"latest": "1.0",
+			"versions": {
+				"1.0": "https://github.com/LaryIsland/bl-sdk-mods/raw/master/SpareParts/SpareParts.zip"
+			},
+			"requirements": {
+				"UserFeedback": ">=1.5",
+        "Python Part Notifier": ">=1.9"
+			}
+		}
+	]
+}
