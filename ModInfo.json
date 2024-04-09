@@ -25,7 +25,7 @@
 			},
 			"requirements": {
 				"UserFeedback": ">=1.5",
-				"Python Part Notifier": ">=1.9",
+				"Python Part Notifier": ">=1.9"
 			}
 		}
 	]
