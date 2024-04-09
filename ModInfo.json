@@ -10,9 +10,9 @@
 		{
 			"name": "Spare Parts",
 			"description": [
-				"Allows you to salvage parts from items and attach them to other items.",
+				"Allows you to salvage parts from items and attach them to other items.\n",
 				"Just select an item from your backpack, hover over another item",
-				"and press the 'salvage' hotkey. Default is [C]",
+				" and press the 'salvage' hotkey. Default is [C]\n",
 				"Note: the item you salvage parts from will be destroyed in the process."
 			],
 			"tagline": "Salvage parts from items and attach them to other items.",
