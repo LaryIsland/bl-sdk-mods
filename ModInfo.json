@@ -9,7 +9,12 @@
 	"mods": [
 		{
 			"name": "Spare Parts",
-			"description": ["Allows you to salvage parts from items and attach them to other items."],
+			"description": [
+				"Allows you to salvage parts from items and attach them to other items.",
+				"Just select an item from your backpack, hover over another item",
+				"and press the 'salvage' hotkey. Default is [C]",
+				"Note: the item you salvage parts from will be destroyed in the process."
+			],
 			"tagline": "Salvage parts from items and attach them to other items.",
 			"types": ["Utility"],
 			"supports": ["BL2"],
