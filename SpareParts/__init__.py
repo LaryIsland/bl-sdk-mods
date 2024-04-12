@@ -146,6 +146,14 @@ class SpareParts(SDKMod):
             return True
         
         if params.ukey == self._salvageHotkey.Key:
+            if caller.GetSelectedThing() == None:
+                return True
+            if caller.EquippingThing.Class.Name == "WillowWeapon" and caller.EquippingThing.AmmoPool.PoolManager != None:
+                self.UserInterface.equippedAttachError()
+                return True
+            elif caller.EquippingThing.Class.Name != "WillowWeapon" and caller.EquippingThing.IsEquipped():
+                self.UserInterface.equippedAttachError()
+                return True
             if caller.EquippingThing == caller.GetSelectedThing():
                 return True
             
@@ -213,6 +221,12 @@ class SparePartsUI():
             "\n\n\n          You can't attach parts to a unique item that don't come\n" \
             "                      from another copy of the same unique item\n\n\n" \
             "                  <font color=\"#708090\">This can be disabled in the mod options section</font>").Show()
+    
+    
+    def equippedAttachError(self):
+        TrainingBox("<font color=\"#dc4646\">Equipped Item</font>",
+            "\n\n\n              You can't attach parts to an item you have equipped\n" \
+            "                               try unequipping it and trying again\n\n\n").Show()
 
 
     def selectInventoryItems(self, firstItem, secondItem):
