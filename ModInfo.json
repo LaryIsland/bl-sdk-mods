@@ -19,9 +19,9 @@
 			"types": ["Utility"],
 			"supports": ["BL2"],
 			"source": "https://github.com/LaryIsland/bl-sdk-mods/tree/main/SpareParts",
-			"latest": "1.1",
+			"latest": "1.2",
 			"versions": {
-				"1.1": "https://github.com/LaryIsland/bl-sdk-mods/raw/main/SpareParts/SpareParts.zip"
+				"1.2": "https://github.com/LaryIsland/bl-sdk-mods/raw/main/SpareParts/SpareParts.zip"
 			},
 			"requirements": {
 				"UserFeedback": ">=1.5",
