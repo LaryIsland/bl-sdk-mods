@@ -146,7 +146,8 @@ class SpareParts(SDKMod):
             if firstItem == secondItem:
                 return True
             
-            if self.StrictUniques.CurrentValue and firstItem.Class.Name != "WillowClassMod" and firstItem.RarityLevel >= 5 and \
+            if self.StrictUniques.CurrentValue and firstItem.Class.Name != "WillowClassMod" and \
+                self.Globals.GetRarityForLevel(firstItem.RarityLevel if firstItem.RarityLevel != 500 else 501) >= 5 and \
                 firstItem.DefinitionData.BalanceDefinition != secondItem.DefinitionData.BalanceDefinition:
                     self.UserInterface.showStrictUniques()
             
