@@ -1,7 +1,6 @@
-import json
 import re
 import webbrowser
-import unrealsdk
+from unrealsdk import *
 
 from Mods.ModMenu import (
     EnabledSaveType,
@@ -25,7 +24,7 @@ try:
         TrainingBox
     )
 except ImportError:
-    webbrowser.open("https://bl-sdk.github.io/requirements/?mod=SpareParts&UserFeedback&Python%20Part%20Notifier")
+    webbrowser.open("https://bl-sdk.github.io/requirements/?mod=Spare%20Parts&UserFeedback&Python%20Part%20Notifier")
     raise
 
 
@@ -37,7 +36,7 @@ class SpareParts(SDKMod):
         "Just select an item from your backpack, hover over another item " \
         "and press the 'salvage' hotkey. Default is [C]\n\n" \
         "Note: the item you salvage parts from will be destroyed in the process."
-    Version: str = "1.0"
+    Version: str = "1.2"
 
     SupportedGames: Game = Game.BL2
     Types: ModTypes = ModTypes.Utility
@@ -53,32 +52,34 @@ class SpareParts(SDKMod):
         )
         self.Keybinds = [self._salvageHotkey]
         self.UserInterface = SparePartsUI(self)
+        self.Globals = FindObject("GlobalsDefinition", "GD_Globals.General.Globals")
         
         self.RarityLock = Options.Boolean(
             Caption="Rarity Lock",
             Description="Only allow salvaging parts from items of the same or higher rarity.",
             StartingValue=True,
-            Choices=["Off", "On"]  # False, True
+            Choices=["Off", "On"]
         )
         self.StrictUniques = Options.Boolean(
             Caption="Strict Uniques",
             Description="Unique items can only salvage parts from the same unique items.\t" \
                 "E.g. An Unkempt Harold can only salvage parts from another Unkempt Harold.",
             StartingValue=True,
-            Choices=["Off", "On"]  # False, True
+            Choices=["Off", "On"]
         )
-        self.ExpertMode = Options.Boolean(
-            Caption="Expert Mode",
-            Description="Enabled salvaging extra Relic and COM parts.\n" \
-                "WARNING if you don't know what you're doing you can create items that will be deleted by the sanity check.",
-            StartingValue=False,
-            Choices=["Off", "On"]  # False, True
+        self.SanityCheckSafeguard = Options.Spinner(
+            Caption="Sanity Check Safeguard",
+            Description="Safe: Every part combination will pass the sanity check.\n" \
+                "Expert: Extra potentially unsafe Relic and COM parts.\n" \
+                "Insane: Removes all checks and safeguards.",
+            StartingValue="Safe",
+            Choices=["Safe", "Expert", "Insane"]
         )
         
         self.Options = [
             self.RarityLock,
             self.StrictUniques,
-            self.ExpertMode,
+            self.SanityCheckSafeguard,
         ]
 
     SettingsInputs = SDKMod.SettingsInputs.copy()
@@ -94,9 +95,9 @@ class SpareParts(SDKMod):
     @Hook("WillowGame.ItemInspectionGFxMovie.OnClose")
     def _inspectOnClose(
         self,
-        caller: unrealsdk.UObject,
-        function: unrealsdk.UFunction,
-        params: unrealsdk.FStruct,
+        caller: UObject,
+        function: UFunction,
+        params: FStruct,
     ) -> bool:
         if self.UserInterface.inspecting:
             self.UserInterface.inspecting = False
@@ -107,9 +108,9 @@ class SpareParts(SDKMod):
     @Hook("WillowGame.StatusMenuInventoryPanelGFxObject.SetTooltipText")
     def _setTooltipText(
         self,
-        caller: unrealsdk.UObject,
-        function: unrealsdk.UFunction,
-        params: unrealsdk.FStruct,
+        caller: UObject,
+        function: UFunction,
+        params: FStruct,
     ) -> bool:
 
         if caller.bInEquippedView is True:
@@ -131,9 +132,9 @@ class SpareParts(SDKMod):
     @Hook("WillowGame.StatusMenuInventoryPanelGFxObject.EquipInputKey")
     def _equipInputKey(
         self,
-        caller: unrealsdk.UObject,
-        function: unrealsdk.UFunction,
-        params: unrealsdk.FStruct,
+        caller: UObject,
+        function: UFunction,
+        params: FStruct,
     ) -> bool:
 
         if params.uevent != KeybindManager.InputEvent.Pressed:
@@ -146,26 +147,31 @@ class SpareParts(SDKMod):
             return True
         
         if params.ukey == self._salvageHotkey.Key:
-            if caller.GetSelectedThing() == None:
+            firstItem = caller.EquippingThing
+            secondItem = caller.GetSelectedThing()
+            if secondItem == None:
                 return True
-            if caller.EquippingThing.Class.Name == "WillowWeapon" and caller.EquippingThing.AmmoPool.PoolManager != None:
+            if firstItem.Class.Name == "WillowWeapon" and firstItem.AmmoPool.PoolManager != None:
                 self.UserInterface.equippedAttachError()
                 return True
-            elif caller.EquippingThing.Class.Name != "WillowWeapon" and caller.EquippingThing.IsEquipped():
+            elif firstItem.Class.Name != "WillowWeapon" and firstItem.IsEquipped():
                 self.UserInterface.equippedAttachError()
                 return True
-            if caller.EquippingThing == caller.GetSelectedThing():
+            if firstItem == secondItem:
                 return True
             
-            if self.StrictUniques.CurrentValue and caller.EquippingThing.Class.Name != "WillowClassMod" and caller.EquippingThing.RarityLevel >= 5 and \
-                caller.EquippingThing.DefinitionData.BalanceDefinition != caller.GetSelectedThing().DefinitionData.BalanceDefinition:
-                self.UserInterface.showStrictUniques()
-            elif self.RarityLock.CurrentValue and caller.GetSelectedThing().RarityLevel < caller.EquippingThing.RarityLevel:
-                self.UserInterface.showRarityLock()
+            if self.StrictUniques.CurrentValue and firstItem.Class.Name != "WillowClassMod" and firstItem.RarityLevel >= 5 and \
+                firstItem.DefinitionData.BalanceDefinition != secondItem.DefinitionData.BalanceDefinition:
+                    self.UserInterface.showStrictUniques()
+            
+            elif self.RarityLock.CurrentValue and \
+                self.Globals.GetRarityForLevel(secondItem.RarityLevel if secondItem.RarityLevel != 500 else 501) < \
+                self.Globals.GetRarityForLevel(firstItem.RarityLevel if firstItem.RarityLevel != 500 else 501):
+                    self.UserInterface.showRarityLock(firstItem.RarityLevel)
             else:
-                self.UserInterface.selectInventoryItems(caller.EquippingThing, caller.GetSelectedThing())
+                self.caller = caller
+                self.UserInterface.selectInventoryItems(firstItem, secondItem)
                 self.UserInterface.showUI()
-            self.caller = caller
             return False
 
         return True
@@ -203,30 +209,69 @@ class SparePartsUI():
             ("ThetaParts", "ThetaPartData", "ThetaItemPartDefinition"),
             ("MaterialParts", "MaterialPartData", "MaterialItemPartDefinition")
         ]]
+        self.Rarities = [
+            "<font color='#ffffff'>Common</font>",
+            "<font color='#3dd20b'>Uncommon</font>",
+            "<font color='#3c8dff'>Rare</font>",
+            "<font color='#a83fe5'>Epic</font>",
+            "<font color='#ca00a8'>E-Tech</font>",
+            "<font color='#ffb300'>Legendary</font>",
+            "<font color='#00ffff'>Pearlescent</font>",
+            "<font color='#ff9ab8'>Seraph</font>",
+            "<font color='#ff7570'>Effervescent</font>"
+        ]
 
 
-    def get_available_parts(self, attr: unrealsdk.FStruct) -> list:
+    def get_available_parts(self, attr: FStruct) -> list:
         return [x.Part for x in attr] if attr else []  
 
+    def getRarityRankFromLevel(self, rarityLevel):
+        if rarityLevel == 2:
+            return (1, 1, 24)
+        elif rarityLevel == 3:
+            return (2, 2, 34)
+        elif rarityLevel == 4:
+            return (3, 3, 7)
+        elif rarityLevel == 6:
+            return (4, 3, 7)
+        elif rarityLevel >= 7 and rarityLevel <= 10:
+            return (5, 5, 18)
+        elif rarityLevel == 500:
+            return (6, 6, 29)
+        elif rarityLevel == 501:
+            return (7, 6, 29)
+        elif rarityLevel == 506:
+            return (8, 8, 48)
 
-    def showRarityLock(self):
+    def showRarityLock(self, firstItemRarityLevel):
+        acceptableRarities = ""
+        rarityRank = self.getRarityRankFromLevel(firstItemRarityLevel)
+        i = 0
+        for rarity in self.Rarities[rarityRank[1]:]: 
+            acceptableRarities += rarity + ", "
+            if i == 4 and rarityRank[0] == 1 or i == 3 and rarityRank[0] == 2:
+                acceptableRarities += "\n".ljust(30)
+            i += 1
+        
         TrainingBox("<font color='#dc4646'>Rarity Lock</font>",
-            "\n\n\n              You can't attach parts from an item of lower rarity\n" \
-            "                                        than the one selected\n\n\n" \
-            "                  <font color=\"#708090\">This can be disabled in the mod options section</font>").Show()
+            "\n\n" + "You can't attach parts from an item of lower rarity\n".rjust(65) \
+            + "than the one selected\n\n".rjust(63) \
+            + f"{self.Rarities[rarityRank[0]]} rarity can accept parts from:\n".rjust(93) \
+            + ' ' * rarityRank[2] + f"{acceptableRarities[:-2]}\n\n" \
+            + "<font color=\"#708090\">This can be disabled in the mod options section</font>".rjust(93)).Show()
 
 
     def showStrictUniques(self):
         TrainingBox("<font color=\"#dc4646\">Strict Uniques</font>",
-            "\n\n\n          You can't attach parts to a unique item that don't come\n" \
-            "                      from another copy of the same unique item\n\n\n" \
-            "                  <font color=\"#708090\">This can be disabled in the mod options section</font>").Show()
+            "\n\n\n" + "You can't attach parts to a unique item that don't come\n".rjust(65) \
+            + "from another copy of the same unique item\n\n\n".rjust(65) \
+            + "<font color=\"#708090\">This can be disabled in the mod options section</font>".rjust(93)).Show()
     
     
     def equippedAttachError(self):
         TrainingBox("<font color=\"#dc4646\">Equipped Item</font>",
-            "\n\n\n              You can't attach parts to an item you have equipped\n" \
-            "                               try unequipping it and trying again\n\n\n").Show()
+            "\n\n\n" + "You can't attach parts to an item you have equipped\n".rjust(65) \
+            + "try unequipping it and trying again\n\n\n".rjust(69)).Show()
 
 
     def selectInventoryItems(self, firstItem, secondItem):
@@ -245,15 +290,17 @@ class SparePartsUI():
                 secondItemPart = getattr(secondItem.DefinitionData, part[1])
                 if secondItemPart is None:
                     continue
-                if secondItemPart in self.get_available_parts(
-                    getattr(
+                if self.owner.SanityCheckSafeguard.CurrentValue == "Insane" and \
+                    firstItem.DefinitionData.WeaponTypeDefinition.WeaponType == secondItem.DefinitionData.WeaponTypeDefinition.WeaponType or \
+                    secondItemPart in self.get_available_parts(
                         getattr(
-                            firstItem.DefinitionData.BalanceDefinition.RuntimePartListCollection,
-                            part[0]
-                        ),
-                        "WeightedParts")
-                    ):
-                    self.swappableParts.append([firstItemPart, secondItemPart, part[1], 0])
+                            getattr(
+                                firstItem.DefinitionData.BalanceDefinition.RuntimePartListCollection,
+                                part[0]
+                            ),
+                            "WeightedParts")
+                        ):
+                            self.swappableParts.append([firstItemPart, secondItemPart, part[1], 0])
                 else:
                     self.incompatibleParts.append(secondItemPart)
 
@@ -264,12 +311,12 @@ class SparePartsUI():
                 partLookup = ["InventoryDefinition", 0]
                 
             elif firstItem.Class.Name == "WillowArtifact":
-                i = 0 if self.owner.ExpertMode.CurrentValue else 7
+                i = 0 if self.owner.SanityCheckSafeguard.CurrentValue != "Safe" else 7
                 j = 8
                 partLookup = ["PartListCollection", 1]
             
             elif firstItem.Class.Name == "WillowClassMod":
-                i = 0 if self.owner.ExpertMode.CurrentValue else 1
+                i = 0 if self.owner.SanityCheckSafeguard.CurrentValue != "Safe" else 1
                 j = 9
                 partLookup = ["RuntimePartListCollection", 1]
                 
@@ -285,7 +332,7 @@ class SparePartsUI():
                 secondItemPart = getattr(secondItem.DefinitionData, part[2])
                 if secondItemPart is None:
                     continue
-                if secondItemPart in self.get_available_parts(
+                if self.owner.SanityCheckSafeguard.CurrentValue == "Insane" or secondItemPart in self.get_available_parts(
                     getattr(
                         getattr(
                             getattr(
@@ -313,7 +360,7 @@ class SparePartsUI():
             if key == self.owner._salvageHotkey.Key:
                 self.GuidedBox.Hide()
                 
-                inventory_manager: unrealsdk.UObject = unrealsdk.GetEngine().GamePlayers[0].Actor.GetPawnInventoryManager()
+                inventory_manager: UObject = GetEngine().GamePlayers[0].Actor.GetPawnInventoryManager()
                 inventory_manager.AddInventoryToBackpack(self.combinedItem.CreateClone())
                 inventory_manager.RemoveInventoryFromBackpack(self.firstItem)
                 inventory_manager.RemoveInventoryFromBackpack(self.secondItem)
@@ -328,12 +375,23 @@ class SparePartsUI():
     
     def showGuidedReplacements(self, selectedButtonIndex: int = 0):
         GuidedBoxCaption = ""
+        GuidedBoxCaptionList = []
         self.guidedBoxButtons.clear()
-        i = 0
         for parts in self.swappableParts:
             partName = re.sub("<(\/){0,1}font( color=(\"|\')#[0-z]{6}(\"|\')){0,1}>", "", get_single_part_name(parts[1 - parts[3]], True, False))
             self.guidedBoxButtons.append(OptionBoxButton(f"Salvage {partName}"))
-            GuidedBoxCaption += f"<font color=\"#ffe6cc\">  {get_single_part_name(parts[parts[3]], True, False)}\n</font>"
+            GuidedBoxCaptionList.append(f"<font color=\"#ffe6cc\">  {get_single_part_name(parts[parts[3]], True, False)}</font>")
+        
+        if len(self.swappableParts) <= 5:
+            for Caption in GuidedBoxCaptionList:
+                GuidedBoxCaption += Caption + "\n"
+        else:
+            i = 0
+            while i < len(self.swappableParts) - 5:
+                GuidedBoxCaption += GuidedBoxCaptionList[i].ljust(70) + GuidedBoxCaptionList[i+5] + "\n"
+                i += 1
+            for Caption in GuidedBoxCaptionList[i:5]:
+                GuidedBoxCaption += Caption + "\n"
         
         self.GuidedBox = OptionBox(Title = "Current Parts", Caption = GuidedBoxCaption, Buttons = self.guidedBoxButtons,
             Tooltip = f"[Enter] Select    [Escape] Cancel    [{self.owner._salvageHotkey.Key}] Confirm    [F] Inspect")
@@ -359,9 +417,9 @@ class SparePartsUI():
         if self.firstItem.Class.Name == "WillowClassMod" and \
             self.firstItem.DefinitionData.ItemDefinition.RequiredPlayerClass != self.secondItem.DefinitionData.ItemDefinition.RequiredPlayerClass:
             TrainingBox("<font color=\"#dc4646\">Incompatible Class Mod</font>",
-                "\n\n\n            Can't salvage parts from another classes' Class Mod").Show()
+                "\n\n\n" + "Can't salvage parts from another classes' Class Mod".rjust(63)).Show()
         else:
-            foundPartsPopup = TrainingBox("Found Parts", foundPartsPopupCaption)
+            foundPartsPopup = TrainingBox(f"Found Parts [{self.owner.SanityCheckSafeguard.CurrentValue} Mode]", foundPartsPopupCaption)
             if len(self.swappableParts) > 0 :
                 foundPartsPopup.OnExit = self.showGuidedReplacements
             foundPartsPopup.Show()
@@ -370,13 +428,13 @@ class SparePartsUI():
 instance = SpareParts()
 
 if __name__ == "__main__":
-    unrealsdk.Log(f"[{instance.Name}] Manually loaded")
+    Log(f"[{instance.Name}] Manually loaded")
     for mod in Mods:
         if mod.Name == instance.Name:
             if mod.IsEnabled:
                 mod.Disable()
             Mods.remove(mod)
-            unrealsdk.Log(f"[{instance.Name}] Removed last instance")
+            Log(f"[{instance.Name}] Removed last instance")
 
             # Fixes inspect.getfile()
             instance.__class__.__module__ = mod.__class__.__module__
