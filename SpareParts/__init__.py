@@ -415,9 +415,10 @@ class SparePartsUI():
                 foundPartsPopupCaption += f"    {get_single_part_name(part, True, True)}\n"
         
         if self.firstItem.Class.Name == "WillowClassMod" and \
+            self.owner.SanityCheckSafeguard.CurrentValue != "Insane" and \
             self.firstItem.DefinitionData.ItemDefinition.RequiredPlayerClass != self.secondItem.DefinitionData.ItemDefinition.RequiredPlayerClass:
-            TrainingBox("<font color=\"#dc4646\">Incompatible Class Mod</font>",
-                "\n\n\n" + "Can't salvage parts from another classes' Class Mod".rjust(63)).Show()
+                TrainingBox("<font color=\"#dc4646\">Incompatible Class Mod</font>",
+                    "\n\n\n" + "Can't salvage parts from another classes' Class Mod".rjust(63)).Show()
         else:
             foundPartsPopup = TrainingBox(f"Found Parts [{self.owner.SanityCheckSafeguard.CurrentValue} Mode]", foundPartsPopupCaption)
             if len(self.swappableParts) > 0 :
