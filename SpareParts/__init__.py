@@ -23,7 +23,7 @@ try:
         OptionBoxButton,
         TrainingBox
     )
-except ImportError:
+except ModuleNotFoundError:
     webbrowser.open("https://bl-sdk.github.io/requirements/?mod=Spare%20Parts&UserFeedback&Python%20Part%20Notifier")
     raise
 
