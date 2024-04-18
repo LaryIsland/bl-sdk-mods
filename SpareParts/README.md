@@ -3,6 +3,10 @@
 
 # Changelog
 
+### Spare Parts v1.2
+- Added 'Insane' mode that disables all part combination safeguards.
+- Added accepted rarities hint to the 'Rarity Lock' popup.
+
 ### Spare Parts v1.1
 - Fixed duping bug when trying to attach parts to an equipped item.
 
