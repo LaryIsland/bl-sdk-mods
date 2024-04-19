@@ -4,7 +4,7 @@
 # Changelog
 
 ### Spare Parts v1.3
-- Fixed a bug that caused 'The Antagonist' shield to not properly fetch it's compatible parts
+- Fixed a bug that caused 'The Antagonist' shield to not properly fetch it's compatible parts.
 
 ### Spare Parts v1.2
 - Added 'Insane' mode that disables all part combination safeguards.
