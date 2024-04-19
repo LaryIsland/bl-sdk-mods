@@ -22,7 +22,7 @@ class SpareParts(SDKMod):
         "Just select an item from your backpack, hover over another item " \
         "and press the 'salvage' hotkey. Default is [C]\n\n" \
         "Note: the item you salvage parts from will be destroyed in the process."
-    Version: str = "1.2"
+    Version: str = "1.3"
 
     SupportedGames: Game = Game.BL2
     Types: ModTypes = ModTypes.Utility
