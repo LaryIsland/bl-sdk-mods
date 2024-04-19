@@ -295,7 +295,14 @@ class SparePartsUI():
             if firstItem.Class.Name == "WillowShield":
                 i = 0
                 j = 4
-                partLookup: List[Union[str, int]] = ["InventoryDefinition", 0]
+                """
+                A couple shields use PartListCollection instead of InventoryDefinition, but still have a valid
+                AlphaParts declared under InventoryDefinition. This check just reroutes those edge cases.
+                """
+                if firstItem.DefinitionData.BalanceDefinition.InventoryDefinition.BetaParts != None:
+                    partLookup: List[Union[str, int]] = ["InventoryDefinition", 0]
+                else:
+                    partLookup: List[Union[str, int]] = ["PartListCollection", 1]
                 
             elif firstItem.Class.Name == "WillowArtifact":
                 i = 0 if self.owner.SanityCheckSafeguard.CurrentValue != "Safe" else 7
@@ -326,9 +333,11 @@ class SparePartsUI():
                                 firstItem.DefinitionData.BalanceDefinition,
                                 partLookup[0]
                             ),
-                            part[partLookup[1]]),
-                        "WeightedParts")
-                    ):
+                            part[partLookup[1]]
+                        ),
+                        "WeightedParts"
+                    )
+                ):
                     self.swappableParts.append([firstItemPart, secondItemPart, part[2], 0])
                 else:
                     self.incompatibleParts.append(secondItemPart)
