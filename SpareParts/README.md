@@ -3,6 +3,11 @@
 
 # Changelog
 
+### Spare Parts v1.4
+- 'Insane' mode now allows attaching parts that don't exist on the main item (e.g. Adding a 'Fire Element' to a Jakobs Sniper that can't spawn with an Element).
+- Fixed a bug that caused the backpack to think it had one less available slot every time you salvaged an item.
+- Fixed showing some incompatible parts that previously weren't showing at all.
+
 ### Spare Parts v1.3
 - Fixed a bug that caused 'The Antagonist' shield to not properly fetch it's compatible parts.
 
