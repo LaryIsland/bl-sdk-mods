@@ -22,7 +22,7 @@ class SpareParts(SDKMod):
         "Just select an item from your backpack, hover over another item " \
         "and press the 'salvage' hotkey. Default is [C]\n\n" \
         "Note: the item you salvage parts from will be destroyed in the process."
-    Version: str = "1.3"
+    Version: str = "1.4"
 
     SupportedGames: Game = Game.BL2
     Types: ModTypes = ModTypes.Utility
@@ -272,11 +272,18 @@ class SparePartsUI():
         if firstItem.Class.Name == "WillowWeapon":
             for part in self.PartsList[0]:
                 firstItemPart: UObject = getattr(firstItem.DefinitionData, part[1])
-                if firstItemPart is None:
-                    continue
                 secondItemPart: UObject = getattr(secondItem.DefinitionData, part[1])
-                if secondItemPart is None:
-                    continue
+                if self.owner.SanityCheckSafeguard.CurrentValue == "Insane": 
+                    if firstItemPart is None and secondItemPart is None:
+                        continue
+                else:
+                    if secondItemPart is None:
+                        continue
+                    if firstItemPart is None:
+                        self.incompatibleParts.append(secondItemPart)
+                        continue
+
+
                 if self.owner.SanityCheckSafeguard.CurrentValue == "Insane" and \
                     firstItem.DefinitionData.WeaponTypeDefinition.WeaponType == secondItem.DefinitionData.WeaponTypeDefinition.WeaponType or \
                     secondItemPart in self.get_available_parts(
@@ -357,9 +364,10 @@ class SparePartsUI():
                 self.GuidedBox.Hide()
                 
                 inventory_manager: UObject = GetEngine().GamePlayers[0].Actor.GetPawnInventoryManager()
-                inventory_manager.AddInventoryToBackpack(self.combinedItem.CreateClone())
+                inventory_manager.AddBackpackInventory(self.combinedItem.CreateClone())
                 inventory_manager.RemoveInventoryFromBackpack(self.firstItem)
                 inventory_manager.RemoveInventoryFromBackpack(self.secondItem)
+                inventory_manager.UpdateBackpackInventoryCount()
                 
                 self.owner.EscapeCompareMenu()
 
@@ -373,10 +381,20 @@ class SparePartsUI():
         GuidedBoxCaption: str = ""
         GuidedBoxCaptionList: List[str] = []
         self.guidedBoxButtons.clear()
+        partname: str
         for parts in self.swappableParts:
-            partName: str = re.sub("<(\/){0,1}font( color=(\"|\')#[0-z]{6}(\"|\')){0,1}>", "", get_single_part_name(parts[1 - parts[3]], True, False))
+            if parts[1 - parts[3]] is None:
+                partName = re.sub("<(\/){0,1}font( color=(\"|\')#[0-z]{6}(\"|\')){0,1}>", "", get_single_part_name(parts[parts[3]], True, False))
+                partName = "No " + re.sub(".* ", "", partName)
+            else:
+                partName = re.sub("<(\/){0,1}font( color=(\"|\')#[0-z]{6}(\"|\')){0,1}>", "", get_single_part_name(parts[1 - parts[3]], True, False))
             self.guidedBoxButtons.append(OptionBoxButton(f"Salvage {partName}"))
-            GuidedBoxCaptionList.append(f"<font color=\"#ffe6cc\">  {get_single_part_name(parts[parts[3]], True, False)}</font>")
+            if parts[parts[3]] is None:
+                partName = re.sub("<(\/){0,1}font( color=(\"|\')#[0-z]{6}(\"|\')){0,1}>", "", get_single_part_name(parts[1 - parts[3]], True, False))
+                partname = "No " + re.sub(".* ", "", partName)
+                GuidedBoxCaptionList.append(f"<font color=\"#ffe6cc\">  {partname}</font>")
+            else:
+                GuidedBoxCaptionList.append(f"<font color=\"#ffe6cc\">  {get_single_part_name(parts[parts[3]], True, False)}</font>")
         
         if len(self.swappableParts) <= 5:
             for Caption in GuidedBoxCaptionList:
@@ -399,16 +417,18 @@ class SparePartsUI():
     def showUI(self):
         foundPartsPopupCaption: str = "<font color=\"#35fc3d\">Compatible:</font>\n"
         for parts in self.swappableParts[:]:
-            foundPartsPopupCaption += f"    {get_single_part_name(parts[1], True, False)}"
-            if parts[0] == parts[1]:
-                foundPartsPopupCaption += "  <font color=\"#708090\">DUPLICATE PART</font>"
-                self.swappableParts.remove(parts)
-            foundPartsPopupCaption += "\n"
+            if parts[1] is not None:
+                foundPartsPopupCaption += f"    {get_single_part_name(parts[1], True, False)}"
+                if parts[0] == parts[1]:
+                    foundPartsPopupCaption += "  <font color=\"#708090\">DUPLICATE PART</font>"
+                    self.swappableParts.remove(parts)
+                foundPartsPopupCaption += "\n"
         
         if len(self.incompatibleParts) > 0 :
             foundPartsPopupCaption += "\n<font color=\"#dc4646\">Incompatible:</font>\n"
             for part in self.incompatibleParts:
-                foundPartsPopupCaption += f"    {get_single_part_name(part, True, True)}\n"
+                if part is not None:
+                    foundPartsPopupCaption += f"    {get_single_part_name(part, True, True)}\n"
         
         if self.firstItem.Class.Name == "WillowClassMod" and \
             self.owner.SanityCheckSafeguard.CurrentValue != "Insane" and \
