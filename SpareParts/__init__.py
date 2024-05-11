@@ -22,7 +22,7 @@ class SpareParts(SDKMod):
         "Just select an item from your backpack, hover over another item " \
         "and press the 'salvage' hotkey. Default is [C]\n\n" \
         "Note: the item you salvage parts from will be destroyed in the process."
-    Version: str = "1.4"
+    Version: str = "1.5"
 
     SupportedGames: Game = Game.BL2
     Types: ModTypes = ModTypes.Utility
@@ -185,6 +185,7 @@ class SparePartsUI():
             ("GripPartData", "GripPartDefinition"),
             ("SightPartData", "SightPartDefinition"),
             ("StockPartData", "StockPartDefinition"),
+            ("MaterialPartData", "MaterialPartDefinition")
         ],[ #Item Parts
             ("AlphaParts", "AlphaPartData", "AlphaItemPartDefinition"),
             ("BetaParts", "BetaPartData", "BetaItemPartDefinition"),
@@ -270,7 +271,8 @@ class SparePartsUI():
         self.combinedItem: UObject = firstItem.CreateClone()
 
         if firstItem.Class.Name == "WillowWeapon":
-            for part in self.PartsList[0]:
+            i = 9 if self.owner.SanityCheckSafeguard.CurrentValue == "Insane" else 8
+            for part in self.PartsList[0][0:i]:
                 firstItemPart: UObject = getattr(firstItem.DefinitionData, part[1])
                 secondItemPart: UObject = getattr(secondItem.DefinitionData, part[1])
                 if self.owner.SanityCheckSafeguard.CurrentValue == "Insane": 
@@ -313,7 +315,7 @@ class SparePartsUI():
                 
             elif firstItem.Class.Name == "WillowArtifact":
                 i = 0 if self.owner.SanityCheckSafeguard.CurrentValue != "Safe" else 7
-                j = 8
+                j = 9 if self.owner.SanityCheckSafeguard.CurrentValue == "Insane" else 8
                 partLookup: List[Union[str, int]] = ["PartListCollection", 1]
             
             elif firstItem.Class.Name == "WillowClassMod":
@@ -323,7 +325,7 @@ class SparePartsUI():
                 
             elif firstItem.Class.Name == "WillowGrenadeMod":
                 i = 0
-                j = 8
+                j = 9 if self.owner.SanityCheckSafeguard.CurrentValue == "Insane" else 8
                 partLookup: List[Union[str, int]] = ["PartListCollection", 1]
             
             for part in self.PartsList[1][i:j]:
@@ -364,6 +366,7 @@ class SparePartsUI():
                 self.GuidedBox.Hide()
                 
                 inventory_manager: UObject = GetEngine().GamePlayers[0].Actor.GetPawnInventoryManager()
+                self.combinedItem.DefinitionData.UniqueId = self.combinedItem.GenerateUniqueID()
                 inventory_manager.AddBackpackInventory(self.combinedItem.CreateClone())
                 inventory_manager.RemoveInventoryFromBackpack(self.firstItem)
                 inventory_manager.RemoveInventoryFromBackpack(self.secondItem)
