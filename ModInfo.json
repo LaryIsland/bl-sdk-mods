@@ -17,11 +17,11 @@
 			],
 			"tagline": "Salvage parts from items and attach them to other items.",
 			"types": ["Utility"],
-			"supports": ["BL2"],
+			"supports": ["BL2", "TPS"],
 			"source": "https://github.com/LaryIsland/bl-sdk-mods/tree/main/SpareParts",
-			"latest": "1.5",
+			"latest": "1.6",
 			"versions": {
-				"1.5": "https://github.com/LaryIsland/bl-sdk-mods/raw/main/SpareParts/SpareParts.zip"
+				"1.6": "https://github.com/LaryIsland/bl-sdk-mods/raw/main/SpareParts/SpareParts.zip"
 			},
 			"requirements": {
 				"UserFeedback": ">=1.5",
