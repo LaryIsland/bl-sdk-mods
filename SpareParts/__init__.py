@@ -22,9 +22,9 @@ class SpareParts(SDKMod):
         "Just select an item from your backpack, hover over another item " \
         "and press the 'salvage' hotkey. Default is [C]\n\n" \
         "Note: the item you salvage parts from will be destroyed in the process."
-    Version: str = "1.5"
+    Version: str = "1.6"
 
-    SupportedGames: Game = Game.BL2
+    SupportedGames: Game = Game.BL2 | Game.TPS
     Types: ModTypes = ModTypes.Utility
     
     SaveEnabledState: EnabledSaveType = EnabledSaveType.LoadWithSettings
@@ -197,7 +197,7 @@ class SparePartsUI():
             ("ThetaParts", "ThetaPartData", "ThetaItemPartDefinition"),
             ("MaterialParts", "MaterialPartData", "MaterialItemPartDefinition")
         ]]
-        self.Rarities: List[str] = [
+        self.BL2Rarities: List[str] = [
             "<font color='#ffffff'>Common</font>",
             "<font color='#3dd20b'>Uncommon</font>",
             "<font color='#3c8dff'>Rare</font>",
@@ -207,6 +207,15 @@ class SparePartsUI():
             "<font color='#00ffff'>Pearlescent</font>",
             "<font color='#ff9ab8'>Seraph</font>",
             "<font color='#ff7570'>Effervescent</font>"
+        ]
+        self.TPSRarities: List[str] = [
+            "<font color='#ffffff'>Common</font>",
+            "<font color='#3dd20b'>Uncommon</font>",
+            "<font color='#3c8dff'>Rare</font>",
+            "<font color='#a83fe5'>Epic</font>",
+            "<font color='#ca00a8'>E-Tech</font>",
+            "<font color='#ffb300'>Legendary</font>",
+            "<font color='#ffa4e7'>Glitch</font>"
         ]
 
 
@@ -218,34 +227,52 @@ class SparePartsUI():
             return (1, 1, 24)
         elif rarityLevel == 3:
             return (2, 2, 34)
-        elif rarityLevel == 4:
-            return (3, 3, 7)
-        elif rarityLevel == 6:
-            return (4, 3, 7)
-        elif rarityLevel >= 7 and rarityLevel <= 10:
-            return (5, 5, 18)
-        elif rarityLevel == 500:
-            return (6, 6, 29)
-        elif rarityLevel == 501:
-            return (7, 6, 29)
-        elif rarityLevel == 506:
-            return (8, 8, 48)
+        elif Game.GetCurrent() == Game.BL2:
+            if rarityLevel == 4:
+                return (3, 3, 7)
+            elif rarityLevel == 6:
+                return (4, 3, 7)
+            elif rarityLevel >= 7 and rarityLevel <= 10:
+                return (5, 5, 18)
+            elif rarityLevel == 500:
+                return (6, 6, 29)
+            elif rarityLevel == 501:
+                return (7, 6, 29)
+            elif rarityLevel == 506:
+                return (8, 8, 48)
+        elif Game.GetCurrent() == Game.TPS:
+            if rarityLevel == 4:
+                return (3, 3, 38)
+            elif rarityLevel == 6:
+                return (4, 3, 38)
+            elif rarityLevel >= 7 and rarityLevel <= 10:
+                return (5, 5, 50)
+            elif rarityLevel == 501:
+                return (9, 6, 60)
 
     def showRarityLock(self, firstItemRarityLevel: int) -> None:
         acceptableRarities: str = ""
         rarityRank: int = self.getRarityRankFromLevel(firstItemRarityLevel)
         i = 0
-        for rarity in self.Rarities[rarityRank[1]:]: 
-            acceptableRarities += rarity + ", "
-            if i == 4 and rarityRank[0] == 1 or i == 3 and rarityRank[0] == 2:
-                acceptableRarities += "\n".ljust(30)
-            i += 1
+        if Game.GetCurrent() == Game.BL2:
+            leftPadRarities = f"{self.BL2Rarities[rarityRank[0]]} rarity can accept parts from:\n".rjust(93) \
+            + ' ' * (rarityRank[2])
+            for rarity in self.BL2Rarities[rarityRank[1]:]:
+                acceptableRarities += rarity + ", "
+                if i == 4 and rarityRank[0] == 1 or i == 3 and rarityRank[0] == 2:
+                    acceptableRarities += "\n".ljust(30)
+                i += 1
+        else:
+            leftPadRarities = f"{self.TPSRarities[rarityRank[0]]} rarity can accept parts from:\n".rjust(93) \
+            + ' ' * (rarityRank[2] - 6)
+            for rarity in self.TPSRarities[rarityRank[1]:]:
+                acceptableRarities += rarity + ", "
+                i += 1
         
         TrainingBox("<font color='#dc4646'>Rarity Lock</font>",
             "\n\n" + "You can't attach parts from an item of lower rarity\n".rjust(65) \
             + "than the one selected\n\n".rjust(63) \
-            + f"{self.Rarities[rarityRank[0]]} rarity can accept parts from:\n".rjust(93) \
-            + ' ' * rarityRank[2] + f"{acceptableRarities[:-2]}\n\n" \
+            + leftPadRarities + f"{acceptableRarities[:-2]}\n\n" \
             + "<font color=\"#708090\">This can be disabled in the mod options section</font>".rjust(93)).Show()
 
 
