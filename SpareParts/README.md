@@ -3,6 +3,9 @@
 
 # Changelog
 
+### Spare Parts v1.6
+- Added support for Borderlands: The Pre-Sequel
+
 ### Spare Parts v1.5
 - Weapon materials (textures) are now able to be salvaged, meaning you can choose skins for your weapons.
 - Fixed a bug that caused weapons to sometimes not properly save when using the Sanity Saver mod. (Thanks apple1417 and ZetaDæmon)
