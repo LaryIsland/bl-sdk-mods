@@ -4,7 +4,7 @@
 # Changelog
 
 ### Spare Parts v1.6
-- Added support for Borderlands: The Pre-Sequel
+- Added support for Borderlands: The Pre-Sequel.
 
 ### Spare Parts v1.5
 - Weapon materials (textures) are now able to be salvaged, meaning you can choose skins for your weapons.
