@@ -8,6 +8,42 @@
 	},
 	"mods": [
 		{
+			"name": "Melee Enhancement",
+			"description": [
+				"A few tweaks to Zer0 and Krieg to enhance their melee gameplay\n\n",
+				"Zer0\n",
+				"Fearless increases shield recharge delay, and Kunai no longer inflict self damage\n",
+				"Krieg\n",
+				"Silence the Voices self-hit chance scales down, and Buzz Axe Bombadier causes slag explosions"
+			],
+			"tagline": "A few tweaks to Zer0 and Krieg to enhance their melee gameplay.",
+			"types": ["Gameplay"],
+			"supports": ["BL2"],
+			"source": "https://github.com/LaryIsland/bl-sdk-mods/tree/main/MeleeEnhancement",
+			"latest": "1.0",
+			"versions": {
+				"1.0": "https://github.com/LaryIsland/bl-sdk-mods/raw/main/MeleeEnhancement/MeleeEnhancement.zip"
+			},
+			"requirements": {
+				"Structs": ">=1.1"
+			}
+		},
+		{
+			"name": "Shield Recharge Timer",
+			"description": [
+				"Displays a configurable timer on your HUD that counts the seconds before your shield starts to recharge"
+			],
+			"tagline": "A shield recharge timer for your HUD",
+			"types": ["Utility"],
+			"supports": ["BL2", "TPS"],
+			"source": "https://github.com/LaryIsland/bl-sdk-mods/tree/main/ShieldRechargeTimer",
+			"latest": "1.0",
+			"versions": {
+				"1.0": "https://github.com/LaryIsland/bl-sdk-mods/raw/main/ShieldRechargeTimer/ShieldRechargeTimer.zip"
+			},
+			"requirements": {}
+		},
+		{
 			"name": "Spare Parts",
 			"description": [
 				"Allows you to salvage parts from items and attach them to other items.\n",
