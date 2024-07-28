@@ -8,7 +8,7 @@
 
 ### Spare Parts v1.5
 - Weapon materials (textures) are now able to be salvaged, meaning you can choose skins for your weapons.
-- Fixed a bug that caused weapons to sometimes not properly save when using the Sanity Saver mod. (Thanks apple1417 and ZetaDæmon)
+- Fixed a bug that caused weapons to sometimes not properly save when using the Sanity Saver mod. (Thanks [apple1417](https://github.com/apple1417) and [ZetaDaemon](https://github.com/ZetaDaemon))
 
 ### Spare Parts v1.4
 - 'Insane' mode now allows attaching parts that don't exist on the main item (e.g. Adding a 'Fire Element' to a Jakobs Sniper that can't spawn with an Element).
