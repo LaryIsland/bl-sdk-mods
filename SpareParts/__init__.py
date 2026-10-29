@@ -20,11 +20,10 @@ class SpareParts(SDKMod):
     Name: str = "Spare Parts"
     Author: str = "LaryIsland"
     Description: str = "<font size='26' color='#de5b00'>\t     Spare Parts</font>\n\n" \
-        "Allows you to salvage parts from items and attach them to other items.\n\n" \
+        "Allows you to swap parts between two items.\n\n" \
         "Just select an item from your backpack, hover over another item " \
-        "and press the 'salvage' hotkey. Default is [C]\n\n" \
-        "Note: the item you salvage parts from will be destroyed in the process."
-    Version: str = "1.6"
+        "and press the 'swap' hotkey. Default is [C]"
+    Version: str = "1.7"
 
     SupportedGames: Game = Game.BL2 | Game.TPS
     Types: ModTypes = ModTypes.Utility
@@ -33,12 +32,17 @@ class SpareParts(SDKMod):
 
     def __init__(self) -> None:
         super().__init__()
-        self._salvageHotkey: Keybind = Keybind(
-            "Salvage Item Parts",
+        self._swapHotkey: Keybind = Keybind(
+            "Swap Item Parts",
             "C",
             True,
         )
-        self.Keybinds = [self._salvageHotkey]
+        self._inspectSecondHotkey: Keybind = Keybind(
+            "Inspect Other Item",
+            "O",
+            True,
+        )
+        self.Keybinds = [self._swapHotkey]
         self.UserInterface = SparePartsUI(self)
         self.Globals = FindObject("GlobalsDefinition", "GD_Globals.General.Globals")
 
@@ -50,8 +54,8 @@ class SpareParts(SDKMod):
         )
         self.StrictUniques = Options.Boolean(
             Caption="Strict Uniques",
-            Description=("Unique items can only salvage parts from the same unique items.\t"
-                         "E.g. An Unkempt Harold can only salvage parts from another Unkempt Harold."),
+            Description=("Unique items can only swap parts between the same unique items.\t"
+                         "E.g. An Unkempt Harold can only swap parts with another Unkempt Harold."),
             StartingValue=True,
             Choices=("Off", "On")
         )
@@ -109,7 +113,7 @@ class SpareParts(SDKMod):
             return True
 
         result: str = ""
-        result = f"{params.TooltipsText}\n[{self._salvageHotkey.Key}] Salvage Parts"
+        result = f"{params.TooltipsText}\n[{self._swapHotkey.Key}] Swap Parts"
 
         caller.SetTooltipText(result)
         return False
@@ -131,7 +135,7 @@ class SpareParts(SDKMod):
         if caller.bInEquippedView is True:
             return True
 
-        if params.ukey == self._salvageHotkey.Key:
+        if params.ukey == self._swapHotkey.Key:
             firstItem: UObject = caller.EquippingThing
             secondItem: UObject = caller.GetSelectedThing()
             if secondItem is None:
@@ -291,6 +295,7 @@ class SparePartsUI():
         self.firstItem: UObject = firstItem
         self.secondItem: UObject = secondItem
         self.combinedItem: UObject = firstItem.CreateClone()
+        self.combinedSecondItem: UObject = secondItem.CreateClone()
 
         if firstItem.Class.Name == "WillowWeapon":
             i = 9 if self.owner.SanityCheckSafeguard.CurrentValue == "Insane" else 8
@@ -325,7 +330,7 @@ class SparePartsUI():
         else:
             if firstItem.Class.Name == "WillowShield":
                 i = 0
-                j = 4
+                j = 9
                 """
                 A couple shields use PartListCollection instead of InventoryDefinition, but still have a valid
                 AlphaParts declared under InventoryDefinition. This check just reroutes those edge cases.
@@ -378,17 +383,27 @@ class SparePartsUI():
         partLocation: List = self.swappableParts[self.guidedBoxButtons.index(button)]
         partLocation[3] = 1 - partLocation[3]
         setattr(self.combinedItem.DefinitionData, partLocation[2], partLocation[partLocation[3]])
+        setattr(self.combinedSecondItem.DefinitionData, partLocation[2], partLocation[1 - partLocation[3]])
         self.combinedItem.InitializeInternal(True)
+        self.combinedSecondItem.InitializeInternal(True)
         self.showGuidedReplacements(self.guidedBoxButtons.index(button))
 
-    def confirmGuidedReplacements(self, key: str, event: int):
+    def confirmGuidedReplacements(self, key: str, event: KeybindManager.InputEvent):
         if event == KeybindManager.InputEvent.Pressed:
-            if key == self.owner._salvageHotkey.Key:
+            if key == self.owner._swapHotkey.Key:
                 self.GuidedBox.Hide()
 
                 inventory_manager: UObject = GetEngine().GamePlayers[0].Actor.GetPawnInventoryManager()
+                first_mark = self.firstItem.GetMark()
+                second_mark = self.secondItem.GetMark()
                 self.combinedItem.DefinitionData.UniqueId = self.combinedItem.GenerateUniqueID()
-                inventory_manager.AddBackpackInventory(self.combinedItem.CreateClone())
+                self.combinedSecondItem.DefinitionData.UniqueId = (self.combinedSecondItem.GenerateUniqueID())
+                first_clone = self.combinedItem.CreateClone()
+                second_clone = self.combinedSecondItem.CreateClone()
+                first_clone.SetMark(first_mark)
+                second_clone.SetMark(second_mark)
+                inventory_manager.AddBackpackInventory(first_clone)
+                inventory_manager.AddBackpackInventory(second_clone)
                 inventory_manager.RemoveInventoryFromBackpack(self.firstItem)
                 inventory_manager.RemoveInventoryFromBackpack(self.secondItem)
                 inventory_manager.UpdateBackpackInventoryCount()
@@ -398,6 +413,10 @@ class SparePartsUI():
             if key == "F":
                 self.inspecting = True
                 self.owner.InspectCustomItem(self.combinedItem.CreateClone())
+                self.GuidedBox.Hide()
+            elif key == self.owner._inspectSecondHotkey.Key:
+                self.inspecting = True
+                self.owner.InspectCustomItem(self.combinedSecondItem.CreateClone())
                 self.GuidedBox.Hide()
 
     def showGuidedReplacements(self, selectedButtonIndex: int = 0):
@@ -419,7 +438,7 @@ class SparePartsUI():
                     "",
                     get_single_part_name(parts[1 - parts[3]], True, False)
                 )
-            self.guidedBoxButtons.append(OptionBoxButton(f"Salvage {partName}"))
+            self.guidedBoxButtons.append(OptionBoxButton(f"Swap {partName}"))
             if parts[parts[3]] is None:
                 partName = re.sub(
                     r"<(\/){0,1}font( color=(\"|\')#[0-z]{6}(\"|\')){0,1}>",
@@ -450,7 +469,7 @@ class SparePartsUI():
             Title="Current Parts",
             Caption=GuidedBoxCaption,
             Buttons=self.guidedBoxButtons,
-            Tooltip=f"[Enter] Select    [Escape] Cancel    [{self.owner._salvageHotkey.Key}] Confirm    [F] Inspect"
+            Tooltip=f"[Enter] Select    [Escape] Cancel    [{self.owner._swapHotkey.Key}] Confirm    [F] Inspect"
         )
         self.GuidedBox.OnInput = self.confirmGuidedReplacements
         self.GuidedBox.OnPress = self.replacePart
@@ -477,7 +496,7 @@ class SparePartsUI():
                 and self.firstItem.DefinitionData.ItemDefinition.RequiredPlayerClass != \
                 self.secondItem.DefinitionData.ItemDefinition.RequiredPlayerClass:
             TrainingBox("<font color=\"#dc4646\">Incompatible Class Mod</font>",
-                        "\n\n\n" + "Can't salvage parts from another classes' Class Mod".rjust(63)).Show()
+                        "\n\n\n" + "Can't swap parts with another classes' Class Mod".rjust(63)).Show()
         else:
             foundPartsPopup = TrainingBox(
                 f"Found Parts [{self.owner.SanityCheckSafeguard.CurrentValue} Mode]", foundPartsPopupCaption
