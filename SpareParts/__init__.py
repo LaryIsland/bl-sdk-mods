@@ -469,7 +469,7 @@ class SparePartsUI():
             Title="Current Parts",
             Caption=GuidedBoxCaption,
             Buttons=self.guidedBoxButtons,
-            Tooltip=f"[Enter] Select    [Escape] Cancel    [{self.owner._swapHotkey.Key}] Confirm    [F] Inspect"
+            Tooltip=f"[{self.owner._swapHotkey.Key}] Confirm    [F] Inspect Selected    [{self.owner._inspectSecondHotkey.Key}] Inspect Other"
         )
         self.GuidedBox.OnInput = self.confirmGuidedReplacements
         self.GuidedBox.OnPress = self.replacePart
