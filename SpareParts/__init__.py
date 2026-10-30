@@ -67,11 +67,19 @@ class SpareParts(SDKMod):
             StartingValue="Safe",
             Choices=["Safe", "Expert", "Insane"]
         )
+        self.SwapMethod = Options.Spinner(
+            Caption="Parts Transfer Method",
+            Description=("Salvage: Transfer parts to the first item and delete the second item.\n"
+                "Swap: Exchange parts between two items and keep both."),
+            StartingValue="Salvage",
+            Choices=["Salvage", "Swap"]
+        )
 
         self.Options = [
             self.RarityLock,
             self.StrictUniques,
             self.SanityCheckSafeguard,
+            self.SwapMethod,
         ]
 
     SettingsInputs = SDKMod.SettingsInputs.copy()
@@ -397,13 +405,16 @@ class SparePartsUI():
                 first_mark = self.firstItem.GetMark()
                 second_mark = self.secondItem.GetMark()
                 self.combinedItem.DefinitionData.UniqueId = self.combinedItem.GenerateUniqueID()
-                self.combinedSecondItem.DefinitionData.UniqueId = (self.combinedSecondItem.GenerateUniqueID())
                 first_clone = self.combinedItem.CreateClone()
-                second_clone = self.combinedSecondItem.CreateClone()
                 first_clone.SetMark(first_mark)
-                second_clone.SetMark(second_mark)
                 inventory_manager.AddBackpackInventory(first_clone)
-                inventory_manager.AddBackpackInventory(second_clone)
+                
+                if self.owner.SwapMethod.CurrentValue == "Swap":
+                    self.combinedSecondItem.DefinitionData.UniqueId = self.combinedSecondItem.GenerateUniqueID()
+                    second_clone = self.combinedSecondItem.CreateClone()
+                    second_clone.SetMark(second_mark)
+                    inventory_manager.AddBackpackInventory(second_clone)
+                  
                 inventory_manager.RemoveInventoryFromBackpack(self.firstItem)
                 inventory_manager.RemoveInventoryFromBackpack(self.secondItem)
                 inventory_manager.UpdateBackpackInventoryCount()
