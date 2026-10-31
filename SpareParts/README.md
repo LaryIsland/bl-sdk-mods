@@ -3,6 +3,11 @@
 
 # Changelog
 
+### Spare Parts v2.0
+- Ported to the new PythonSDK (v3.8), older SDK versions should keep using v1.7
+- Uses the SDK's new built-in UI, so UserFeedback is no longer required.
+- If Python Part Notifier isn't available, raw part names will now be shown.
+
 ### Spare Parts v1.7
 - Added a 'Swap' mode, which exchanges parts instead of salvaging. (Thanks [ATOM-X1](https://www.nexusmods.com/profile/Atmix1/mods?gameId=428))
 - Items now keep their favourite/trash marks after salvaging.

@@ -1,0 +1,23 @@
+[project]
+name = "SpareParts"
+version = "2.0"
+authors = [{ name = "LaryIsland" }]
+dependencies = ["PythonPartNotifier==1.9"]
+description = """\
+Allows you to salvage parts from items and attach them to other items.
+
+Just select an item from your backpack, hover over another item and press the 'salvage' hotkey. \
+Default is [C]
+
+Note: In regular mode the item you salvage parts from will be destroyed.\
+"""
+
+[project.urls]
+Source = "https://github.com/LaryIsland/bl-sdk-mods/tree/main/SpareParts"
+Changelog = "https://github.com/LaryIsland/bl-sdk-mods/blob/main/SpareParts/README.md"
+
+[tool.sdkmod]
+name = "Spare Parts"
+supported_games = ["BL2", "TPS"]
+license = { name = "MIT", url = "https://choosealicense.com/licenses/mit/" }
+download = "https://github.com/LaryIsland/bl-sdk-mods/raw/main/SpareParts/SpareParts.sdkmod"

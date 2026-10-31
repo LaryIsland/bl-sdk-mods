@@ -57,7 +57,7 @@
 			"source": "https://github.com/LaryIsland/bl-sdk-mods/tree/main/SpareParts",
 			"latest": "1.7",
 			"versions": {
-				"1.7": "https://github.com/LaryIsland/bl-sdk-mods/raw/main/SpareParts/SpareParts.zip"
+				"1.7": "https://github.com/LaryIsland/bl-sdk-mods/raw/3bbfa4a/SpareParts/SpareParts.zip"
 			},
 			"requirements": {
 				"UserFeedback": ">=1.5",
