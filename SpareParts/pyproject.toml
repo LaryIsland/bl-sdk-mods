@@ -15,6 +15,7 @@ Note: In regular mode the item you salvage parts from will be destroyed.\
 [project.urls]
 Source = "https://github.com/LaryIsland/bl-sdk-mods/tree/main/SpareParts"
 Changelog = "https://github.com/LaryIsland/bl-sdk-mods/blob/main/SpareParts/README.md"
+Issues = "https://github.com/LaryIsland/bl-sdk-mods/issues"
 
 [tool.sdkmod]
 name = "Spare Parts"

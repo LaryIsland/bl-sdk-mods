@@ -14,7 +14,8 @@ from unrealsdk import logging
 from unrealsdk.hooks import Block, Type, Unset, prevent_hooking_direct_calls
 from unrealsdk.unreal import BoundFunction, UObject, WrappedArray, WrappedStruct
 
-from mods_base import BoolOption, CoopSupport, EInputEvent, Game, KeybindType, SpinnerOption, build_mod, get_pc, hook
+from mods_base import (BoolOption, CoopSupport, EInputEvent, Game, HiddenOption, KeybindType, SpinnerOption,
+                       build_mod, get_ordered_mod_list, get_pc, hook)
 from ui_utils import OptionBox, OptionBoxButton, TrainingBox
 
 # Python Part Notifier is still a legacy mod, so it has to be imported and called under legacy compat.
@@ -55,6 +56,56 @@ def get_part_name(part: UObject, show_slot: bool, show_type: bool) -> str:
         return get_single_part_name(part, show_slot, show_type)
 
 
+SANITY_SAVER_URL: str = "https://bl-sdk.github.io/willow2-mod-db/mods/sanitysaver/"
+
+
+def isSanitySaverEnabled() -> bool:
+    return any(otherMod.name == "Sanity Saver" and otherMod.is_enabled for otherMod in get_ordered_mod_list())
+
+
+def needsInsaneWarning() -> bool:
+    return not InsaneWarningAcknowledged.value and not isSanitySaverEnabled()
+
+
+def showInsaneWarning(resetValue: str, inOptionsMenu: bool, onKeep: Callable[[], None] | None = None) -> None:
+    openPageButton = OptionBoxButton("Open Sanity Saver Page")
+    keepButton = OptionBoxButton("I Know What I'm Doing")
+
+    def onSelect(box: OptionBox, button: OptionBoxButton) -> None:
+        if button == openPageButton:
+            webbrowser.open(SANITY_SAVER_URL)
+            box.show(openPageButton)
+        else:
+            InsaneWarningAcknowledged.value = True
+            InsaneWarningAcknowledged.save()
+            if onKeep is not None:
+                onKeep()
+
+    def onCancel(box: OptionBox) -> None:
+        SanityCheckSafeguard.value = resetValue
+        if not inOptionsMenu:
+            mod.save_settings()
+        message: str = "\n\n\n\n" + f"Sanity Check Safeguard has been set back to {resetValue}\n\n\n".rjust(66)
+        if inOptionsMenu:
+            message += "<font color=\"#708090\">The options menu will show Insane until you reopen it</font>".rjust(95)
+        TrainingBox(title="<font color=\"#dc4646\">Sanity Check Safeguard Reset</font>", message=message).show()
+
+    OptionBox(
+        title="<font color=\"#dc4646\">Sanity Saver Not Found</font>",
+        message="\n\n\n" + "Items made in Insane mode can fail the sanity check.\n".rjust(67)
+        + "They will be deleted when your save next loads,\n".rjust(66)
+        + "unless Sanity Saver is installed and enabled.".rjust(67),
+        buttons=[openPageButton, keepButton],
+        on_select=onSelect,
+        on_cancel=onCancel
+    ).show()
+
+
+def warnInsaneWithoutSanitySaver(option: SpinnerOption, newValue: str) -> None:
+    if newValue == "Insane" and needsInsaneWarning():
+        showInsaneWarning(option.value, True)
+
+
 salvageHotkey: KeybindType = KeybindType(
     "Salvage Item Parts",
     "C",
@@ -82,7 +133,8 @@ SanityCheckSafeguard = SpinnerOption(
                  "Expert: Extra potentially unsafe Relic and COM parts.\n"
                  "Insane: Removes all checks and safeguards."),
     value="Safe",
-    choices=["Safe", "Expert", "Insane"]
+    choices=["Safe", "Expert", "Insane"],
+    on_change_while_enabled=warnInsaneWithoutSanitySaver
 )
 SwapMethod = SpinnerOption(
     identifier="Parts Transfer Method",
@@ -90,6 +142,10 @@ SwapMethod = SpinnerOption(
                  "Swap: Exchange parts between items keeping both."),
     value="Regular",
     choices=["Regular", "Swap"]
+)
+InsaneWarningAcknowledged = HiddenOption(
+    identifier="Insane Warning Acknowledged",
+    value=False
 )
 
 inventoryPanel: UObject | None = None
@@ -179,8 +235,6 @@ def _equipInputKey(
     func: BoundFunction,
 ) -> type[Block] | None:
 
-    global inventoryPanel
-
     if args.uevent != EInputEvent.IE_Pressed:
         return None
 
@@ -204,25 +258,35 @@ def _equipInputKey(
         if firstItem == secondItem:
             return None
 
-        # Swapping moves parts in both directions, so both locks have to hold both ways
-        swapMode: bool = SwapMethod.value == "Swap"
-        firstRarity: int = getRarity(firstItem)
-        secondRarity: int = getRarity(secondItem)
-
-        if StrictUniques.value and firstItem.Class.Name != "WillowClassMod" \
-            and (firstRarity >= 5 or swapMode and secondRarity >= 5) \
-                and firstItem.DefinitionData.BalanceDefinition != secondItem.DefinitionData.BalanceDefinition:
-            UserInterface.showStrictUniques()
-
-        elif RarityLock.value and (secondRarity < firstRarity or swapMode and firstRarity < secondRarity):
-            UserInterface.showRarityLock(firstItem.RarityLevel, swapMode)
+        if SanityCheckSafeguard.value == "Insane" and needsInsaneWarning():
+            showInsaneWarning(SanityCheckSafeguard.default_value, False,
+                              lambda: startSalvage(obj, firstItem, secondItem))
         else:
-            inventoryPanel = obj
-            UserInterface.selectInventoryItems(firstItem, secondItem)
-            UserInterface.showUI()
+            startSalvage(obj, firstItem, secondItem)
         return Block
 
     return None
+
+
+def startSalvage(panel: UObject, firstItem: UObject, secondItem: UObject) -> None:
+    global inventoryPanel
+
+    # Swapping moves parts in both directions, so both locks have to hold both ways
+    swapMode: bool = SwapMethod.value == "Swap"
+    firstRarity: int = getRarity(firstItem)
+    secondRarity: int = getRarity(secondItem)
+
+    if StrictUniques.value and firstItem.Class.Name != "WillowClassMod" \
+        and (firstRarity >= 5 or swapMode and secondRarity >= 5) \
+            and firstItem.DefinitionData.BalanceDefinition != secondItem.DefinitionData.BalanceDefinition:
+        UserInterface.showStrictUniques()
+
+    elif RarityLock.value and (secondRarity < firstRarity or swapMode and firstRarity < secondRarity):
+        UserInterface.showRarityLock(firstItem.RarityLevel, swapMode)
+    else:
+        inventoryPanel = panel
+        UserInterface.selectInventoryItems(firstItem, secondItem)
+        UserInterface.showUI()
 
 
 def getRarity(item: UObject) -> int:
@@ -600,7 +664,7 @@ UserInterface = SparePartsUI()
 mod = build_mod(
     coop_support=CoopSupport.ClientSide if Game.get_current() == Game.BL2 else CoopSupport.Incompatible,
     keybinds=[salvageHotkey],
-    options=[RarityLock, StrictUniques, SanityCheckSafeguard, SwapMethod],
+    options=[RarityLock, StrictUniques, SanityCheckSafeguard, SwapMethod, InsaneWarningAcknowledged],
     hooks=[_inspectOnClose, _startInventoryTooltips, _endInventoryTooltips, _equipInputKey],
     on_disable=_addSalvageHint.disable
 )
