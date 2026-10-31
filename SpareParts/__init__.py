@@ -23,8 +23,8 @@ class SpareParts(SDKMod):
         "Allows you to salvage parts from items and attach them to other items.\n\n" \
         "Just select an item from your backpack, hover over another item " \
         "and press the 'salvage' hotkey. Default is [C]\n\n" \
-        "Note: the item you salvage parts from will be destroyed in the process."
-    Version: str = "1.6"
+        "Note: In regular mode the item you salvage parts from will be destroyed."
+    Version: str = "1.7"
 
     SupportedGames: Game = Game.BL2 | Game.TPS
     Types: ModTypes = ModTypes.Utility
@@ -63,11 +63,19 @@ class SpareParts(SDKMod):
             StartingValue="Safe",
             Choices=["Safe", "Expert", "Insane"]
         )
+        self.SwapMethod = Options.Spinner(
+            Caption="Parts Transfer Method",
+            Description=("Regular: Destroy an item to salvage its parts.\n"
+                         "Swap: Exchange parts between items keeping both."),
+            StartingValue="Regular",
+            Choices=["Regular", "Swap"]
+        )
 
         self.Options = [
             self.RarityLock,
             self.StrictUniques,
             self.SanityCheckSafeguard,
+            self.SwapMethod,
         ]
 
     SettingsInputs = SDKMod.SettingsInputs.copy()
@@ -109,7 +117,8 @@ class SpareParts(SDKMod):
             return True
 
         result: str = ""
-        result = f"{params.TooltipsText}\n[{self._salvageHotkey.Key}] Salvage Parts"
+        action: str = "Swap" if self.SwapMethod.CurrentValue == "Swap" else "Salvage"
+        result = f"{params.TooltipsText}\n[{self._salvageHotkey.Key}] {action} Parts"
 
         caller.SetTooltipText(result)
         return False
@@ -145,15 +154,19 @@ class SpareParts(SDKMod):
             if firstItem == secondItem:
                 return True
 
+            # Swapping moves parts in both directions, so both locks have to hold both ways
+            swapMode: bool = self.SwapMethod.CurrentValue == "Swap"
+            firstRarity: int = self.getRarity(firstItem)
+            secondRarity: int = self.getRarity(secondItem)
+
             if self.StrictUniques.CurrentValue and firstItem.Class.Name != "WillowClassMod" \
-                and self.Globals.GetRarityForLevel(firstItem.RarityLevel if firstItem.RarityLevel != 500 else 501) >= 5\
+                and (firstRarity >= 5 or swapMode and secondRarity >= 5) \
                     and firstItem.DefinitionData.BalanceDefinition != secondItem.DefinitionData.BalanceDefinition:
                 self.UserInterface.showStrictUniques()
 
             elif self.RarityLock.CurrentValue \
-                and self.Globals.GetRarityForLevel(secondItem.RarityLevel if secondItem.RarityLevel != 500 else 501) < \
-                    self.Globals.GetRarityForLevel(firstItem.RarityLevel if firstItem.RarityLevel != 500 else 501):
-                self.UserInterface.showRarityLock(firstItem.RarityLevel)
+                    and (secondRarity < firstRarity or swapMode and firstRarity < secondRarity):
+                self.UserInterface.showRarityLock(firstItem.RarityLevel, swapMode)
             else:
                 self.caller: UObject = caller
                 self.UserInterface.selectInventoryItems(firstItem, secondItem)
@@ -161,6 +174,9 @@ class SpareParts(SDKMod):
             return False
 
         return True
+
+    def getRarity(self, item: UObject) -> int:
+        return self.Globals.GetRarityForLevel(item.RarityLevel if item.RarityLevel != 500 else 501)
 
     def InspectCustomItem(self, inspectableItem: UObject) -> None:
         self.caller.StartEquipPanel.InspectItem(inspectableItem)
@@ -219,6 +235,29 @@ class SparePartsUI():
     def get_available_parts(self, attr: FStruct) -> List:
         return [x.Part for x in attr] if attr else []
 
+    def get_balance_parts(self, item: UObject, partLookup: Tuple[str, int], part: Tuple[str, str, str]) -> List:
+        return self.get_available_parts(
+            getattr(
+                getattr(
+                    getattr(
+                        item.DefinitionData.BalanceDefinition,
+                        partLookup[0]
+                    ),
+                    part[partLookup[1]]
+                ),
+                "WeightedParts"
+            )
+        )
+
+    def getShieldPartLookup(self, shield: UObject) -> Tuple[str, int]:
+        """
+        A couple shields use PartListCollection instead of InventoryDefinition, but still have a valid
+        AlphaParts declared under InventoryDefinition. This check just reroutes those edge cases.
+        """
+        if shield.DefinitionData.BalanceDefinition.InventoryDefinition.BetaParts is not None:
+            return ("InventoryDefinition", 0)
+        return ("PartListCollection", 1)
+
     def getRarityRankFromLevel(self, rarityLevel: int) -> Tuple[int, int, int]:
         if rarityLevel == 2:
             return (1, 1, 24)
@@ -248,7 +287,15 @@ class SparePartsUI():
                 return (9, 6, 60)
         return (9, 6, 60)
 
-    def showRarityLock(self, firstItemRarityLevel: int) -> None:
+    def showRarityLock(self, firstItemRarityLevel: int, swapMode: bool = False) -> None:
+        if swapMode:
+            TrainingBox("<font color='#dc4646'>Rarity Lock</font>",
+                        "\n\n\n" + "You can only swap parts between items\n".rjust(64)
+                        + "of the same rarity\n\n\n".rjust(64)
+                        + "<font color=\"#708090\">This can be disabled in the mod options section</font>".rjust(93)
+                        ).Show()
+            return
+
         acceptableRarities: str = ""
         rarityRank: Tuple[int, int, int] = self.getRarityRankFromLevel(firstItemRarityLevel)
         i = 0
@@ -291,6 +338,9 @@ class SparePartsUI():
         self.firstItem: UObject = firstItem
         self.secondItem: UObject = secondItem
         self.combinedItem: UObject = firstItem.CreateClone()
+        self.swapMode: bool = self.owner.SwapMethod.CurrentValue == "Swap"
+        if self.swapMode:
+            self.combinedSecondItem: UObject = secondItem.CreateClone()
 
         if firstItem.Class.Name == "WillowWeapon":
             i = 9 if self.owner.SanityCheckSafeguard.CurrentValue == "Insane" else 8
@@ -310,30 +360,22 @@ class SparePartsUI():
                 if self.owner.SanityCheckSafeguard.CurrentValue == "Insane" \
                     and firstItem.DefinitionData.WeaponTypeDefinition.WeaponType == \
                         secondItem.DefinitionData.WeaponTypeDefinition.WeaponType \
-                        or secondItemPart in self.get_available_parts(
-                        getattr(
-                            getattr(
-                                firstItem.DefinitionData.BalanceDefinition.RuntimePartListCollection,
-                                part[0]
-                            ),
-                            "WeightedParts")
-                        ):
+                        or secondItemPart in self.get_balance_parts(firstItem, ("RuntimePartListCollection", 0), part) \
+                        and (not self.swapMode or firstItemPart in self.get_balance_parts(
+                            secondItem, ("RuntimePartListCollection", 0), part)):
                     self.swappableParts.append([firstItemPart, secondItemPart, part[1], 0])
                 else:
                     self.incompatibleParts.append(secondItemPart)
 
         else:
+            extraParts: List[Tuple[str, str, str]] = []
             if firstItem.Class.Name == "WillowShield":
                 i = 0
                 j = 4
-                """
-                A couple shields use PartListCollection instead of InventoryDefinition, but still have a valid
-                AlphaParts declared under InventoryDefinition. This check just reroutes those edge cases.
-                """
-                if firstItem.DefinitionData.BalanceDefinition.InventoryDefinition.BetaParts is not None:
-                    partLookup: Tuple[str, int] = ("InventoryDefinition", 0)
-                else:
-                    partLookup: Tuple[str, int] = ("PartListCollection", 1)
+                # Shields never use Epsilon-Theta, so Insane only adds Material
+                if self.owner.SanityCheckSafeguard.CurrentValue == "Insane":
+                    extraParts = [self.PartsList[1][8]]
+                partLookup: Tuple[str, int] = self.getShieldPartLookup(firstItem)
 
             elif firstItem.Class.Name == "WillowArtifact":
                 i = 0 if self.owner.SanityCheckSafeguard.CurrentValue != "Safe" else 7
@@ -350,7 +392,10 @@ class SparePartsUI():
                 j = 9 if self.owner.SanityCheckSafeguard.CurrentValue == "Insane" else 8
                 partLookup: Tuple[str, int] = ("PartListCollection", 1)
 
-            for part in self.PartsList[1][i:j]:
+            secondPartLookup: Tuple[str, int] = self.getShieldPartLookup(secondItem) \
+                if firstItem.Class.Name == "WillowShield" else partLookup
+
+            for part in self.PartsList[1][i:j] + extraParts:
                 firstItemPart: UObject = getattr(firstItem.DefinitionData, part[2])
                 if firstItemPart is None:
                     continue
@@ -358,18 +403,9 @@ class SparePartsUI():
                 if secondItemPart is None:
                     continue
                 if self.owner.SanityCheckSafeguard.CurrentValue == "Insane" \
-                    or secondItemPart in self.get_available_parts(
-                        getattr(
-                            getattr(
-                                getattr(
-                                    firstItem.DefinitionData.BalanceDefinition,
-                                    partLookup[0]
-                                ),
-                                part[partLookup[1]]
-                            ),
-                            "WeightedParts"
-                        )
-                        ):
+                    or secondItemPart in self.get_balance_parts(firstItem, partLookup, part) \
+                        and (not self.swapMode
+                             or firstItemPart in self.get_balance_parts(secondItem, secondPartLookup, part)):
                     self.swappableParts.append([firstItemPart, secondItemPart, part[2], 0])
                 else:
                     self.incompatibleParts.append(secondItemPart)
@@ -379,6 +415,9 @@ class SparePartsUI():
         partLocation[3] = 1 - partLocation[3]
         setattr(self.combinedItem.DefinitionData, partLocation[2], partLocation[partLocation[3]])
         self.combinedItem.InitializeInternal(True)
+        if self.swapMode:
+            setattr(self.combinedSecondItem.DefinitionData, partLocation[2], partLocation[1 - partLocation[3]])
+            self.combinedSecondItem.InitializeInternal(True)
         self.showGuidedReplacements(self.guidedBoxButtons.index(button))
 
     def confirmGuidedReplacements(self, key: str, event: int):
@@ -388,7 +427,14 @@ class SparePartsUI():
 
                 inventory_manager: UObject = GetEngine().GamePlayers[0].Actor.GetPawnInventoryManager()
                 self.combinedItem.DefinitionData.UniqueId = self.combinedItem.GenerateUniqueID()
-                inventory_manager.AddBackpackInventory(self.combinedItem.CreateClone())
+                firstClone: UObject = self.combinedItem.CreateClone()
+                firstClone.SetMark(self.firstItem.GetMark())
+                inventory_manager.AddBackpackInventory(firstClone)
+                if self.swapMode:
+                    self.combinedSecondItem.DefinitionData.UniqueId = self.combinedSecondItem.GenerateUniqueID()
+                    secondClone: UObject = self.combinedSecondItem.CreateClone()
+                    secondClone.SetMark(self.secondItem.GetMark())
+                    inventory_manager.AddBackpackInventory(secondClone)
                 inventory_manager.RemoveInventoryFromBackpack(self.firstItem)
                 inventory_manager.RemoveInventoryFromBackpack(self.secondItem)
                 inventory_manager.UpdateBackpackInventoryCount()
@@ -398,6 +444,11 @@ class SparePartsUI():
             if key == "F":
                 self.inspecting = True
                 self.owner.InspectCustomItem(self.combinedItem.CreateClone())
+                self.GuidedBox.Hide()
+
+            if self.swapMode and key == "G":
+                self.inspecting = True
+                self.owner.InspectCustomItem(self.combinedSecondItem.CreateClone())
                 self.GuidedBox.Hide()
 
     def showGuidedReplacements(self, selectedButtonIndex: int = 0):
@@ -419,7 +470,7 @@ class SparePartsUI():
                     "",
                     get_single_part_name(parts[1 - parts[3]], True, False)
                 )
-            self.guidedBoxButtons.append(OptionBoxButton(f"Salvage {partName}"))
+            self.guidedBoxButtons.append(OptionBoxButton(f"{'Swap' if self.swapMode else 'Salvage'} {partName}"))
             if parts[parts[3]] is None:
                 partName = re.sub(
                     r"<(\/){0,1}font( color=(\"|\')#[0-z]{6}(\"|\')){0,1}>",
@@ -450,7 +501,8 @@ class SparePartsUI():
             Title="Current Parts",
             Caption=GuidedBoxCaption,
             Buttons=self.guidedBoxButtons,
-            Tooltip=f"[Enter] Select    [Escape] Cancel    [{self.owner._salvageHotkey.Key}] Confirm    [F] Inspect"
+            Tooltip=f"[Enter] Select    [Escape] Cancel    [{self.owner._salvageHotkey.Key}] Confirm    "
+            + ("[F/G] Inspect" if self.swapMode else "[F] Inspect")
         )
         self.GuidedBox.OnInput = self.confirmGuidedReplacements
         self.GuidedBox.OnPress = self.replacePart
