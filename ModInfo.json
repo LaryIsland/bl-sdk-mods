@@ -49,15 +49,15 @@
 				"Allows you to salvage parts from items and attach them to other items.\n",
 				"Just select an item from your backpack, hover over another item",
 				" and press the 'salvage' hotkey. Default is [C]\n",
-				"Note: the item you salvage parts from will be destroyed in the process."
+				"Note: In regular mode the item you salvage parts from will be destroyed."
 			],
 			"tagline": "Salvage parts from items and attach them to other items.",
 			"types": ["Utility"],
 			"supports": ["BL2", "TPS"],
 			"source": "https://github.com/LaryIsland/bl-sdk-mods/tree/main/SpareParts",
-			"latest": "1.6",
+			"latest": "1.7",
 			"versions": {
-				"1.6": "https://github.com/LaryIsland/bl-sdk-mods/raw/main/SpareParts/SpareParts.zip"
+				"1.7": "https://github.com/LaryIsland/bl-sdk-mods/raw/main/SpareParts/SpareParts.zip"
 			},
 			"requirements": {
 				"UserFeedback": ">=1.5",

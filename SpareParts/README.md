@@ -3,6 +3,11 @@
 
 # Changelog
 
+### Spare Parts v1.7
+- Added a 'Swap' mode, which exchanges parts instead of salvaging. (Thanks [ATOM-X1](https://www.nexusmods.com/profile/Atmix1/mods?gameId=428))
+- Items now keep their favourite/trash marks after salvaging.
+- Shield materials are now salvageable.
+
 ### Spare Parts v1.6
 - Added support for Borderlands: The Pre-Sequel.
 
