@@ -22,7 +22,7 @@
 			"source": "https://github.com/LaryIsland/bl-sdk-mods/tree/main/MeleeEnhancement",
 			"latest": "1.0",
 			"versions": {
-				"1.0": "https://github.com/LaryIsland/bl-sdk-mods/raw/main/MeleeEnhancement/MeleeEnhancement.zip"
+				"1.0": "https://github.com/LaryIsland/bl-sdk-mods/raw/363f02c/MeleeEnhancement/MeleeEnhancement.zip"
 			},
 			"requirements": {
 				"Structs": ">=1.1"
@@ -39,7 +39,7 @@
 			"source": "https://github.com/LaryIsland/bl-sdk-mods/tree/main/ShieldRechargeTimer",
 			"latest": "1.0",
 			"versions": {
-				"1.0": "https://github.com/LaryIsland/bl-sdk-mods/raw/main/ShieldRechargeTimer/ShieldRechargeTimer.zip"
+				"1.0": "https://github.com/LaryIsland/bl-sdk-mods/raw/363f02c/ShieldRechargeTimer/ShieldRechargeTimer.zip"
 			},
 			"requirements": {}
 		},

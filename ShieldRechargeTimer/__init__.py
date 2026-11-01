@@ -1,299 +1,263 @@
-import webbrowser
+assert __import__("mods_base").__version_info__ >= (1, 12), "Please update the SDK"
+assert __import__("unrealsdk").__version_info__ >= (3, 2, 0), "Please update the SDK"
 
-from unrealsdk import (FindObject, FStruct, GetEngine, Log,  # type: ignore
-                       RemoveHook, RunHook, UFunction, UObject)
+from typing import Any
 
-from ..ModMenu import (EnabledSaveType, Game, Mods, ModTypes, Options,
-                       RegisterMod, SDKMod)
+import unrealsdk
+from unrealsdk.unreal import BoundFunction, UObject, WrappedStruct
+
+from mods_base import (BoolOption, CoopSupport, EInputEvent, NestedOption, SliderOption, SpinnerOption, build_mod,
+                       get_pc, hook)
+
+RedSlider = SliderOption(
+    identifier="Red",
+    description="Red value for the text colour.",
+    value=0,
+    min_value=0,
+    max_value=255,
+    step=1
+)
+GreenSlider = SliderOption(
+    identifier="Green",
+    description="Green value for the text colour.",
+    value=160,
+    min_value=0,
+    max_value=255,
+    step=1
+)
+BlueSlider = SliderOption(
+    identifier="Blue",
+    description="Blue value for the text colour.",
+    value=255,
+    min_value=0,
+    max_value=255,
+    step=1
+)
+AlphaSlider = SliderOption(
+    identifier="Alpha",
+    description="Alpha value for the text colour.",
+    value=255,
+    min_value=0,
+    max_value=255,
+    step=1
+)
+TextColour = NestedOption(
+    identifier="Text Colour",
+    description="Text colour for the recharge timer.",
+    children=[RedSlider, GreenSlider, BlueSlider, AlphaSlider]
+)
+SizeSlider = SliderOption(
+    identifier="Timer Size",
+    description="Timer scaling as a percentage.",
+    value=120,
+    min_value=50,
+    max_value=500,
+    step=1
+)
+xPosSlider = SliderOption(
+    identifier="X Position",
+    description="X position for the timer as a percentage of the total screen.",
+    value=112,
+    min_value=0,
+    max_value=1000,
+    step=1
+)
+yPosSlider = SliderOption(
+    identifier="Y Position",
+    description="Y position for the timer as a percentage of the total screen.",
+    value=860,
+    min_value=0,
+    max_value=1000,
+    step=1
+)
+TimerPos = NestedOption(
+    identifier="Timer Position",
+    description="Text position for the recharge timer.",
+    children=[xPosSlider, yPosSlider]
+)
+FontChoice = SpinnerOption(
+    identifier="Font",
+    description="Use this to pick your font.",
+    value="WillowBody",
+    choices=["WillowBody", "WillowHead", "HUD", "Engine 1", "Engine 2"]
+)
+ShowInMenu = BoolOption(
+    identifier="Show in Pause Menu",
+    description="When enabled, the timer will still show in the pause menu.",
+    value=False
+)
+EnableMovement = BoolOption(
+    identifier="Enable Movement Keys",
+    description="When enabled, the arrow keys will move the timer and the scrollwheel will change its size.",
+    value=False
+)
+OnlyWhenDepleted = BoolOption(
+    identifier="Only when Depleted",
+    description="When enabled, the timer will only show when the shield is fully depleted.",
+    value=False
+)
+OnlyWithRoidShield = BoolOption(
+    identifier="Only with Roid Shield",
+    description="When enabled, the timer will only show when you have a roid shield equipped.",
+    value=False
+)
+
+Fonts: list[str] = [
+    "UI_Fonts.Font_Willowbody_18pt",
+    "UI_Fonts.Font_Willowhead_8pt",
+    "UI_Fonts.Font_Hud_Medium",
+    "EngineFonts.SmallFont",
+    "EngineFonts.TinyFont"
+]
+
+# The shield attributes are looked up when they're used rather than on enable
+SHIELD_REGEN_DELAY: str = "D_Attributes.ShieldResourcePool.ShieldOnIdleRegenerationDelay"
+SHIELD_CUR_VALUE: str = "D_Attributes.ShieldResourcePool.ShieldCurrentValue"
+SHIELD_ROID_VALUE: str = "D_Attributes.Shield.RoidMeleeDamage"
+
+TimeRemaining: float = 0.
+LastDamageTakenTime: float = 0.
 
 
-# used for moving the timer while the hud is up
-def RechargeTimerMoveKeys(caller: UObject, function: UFunction, params: FStruct):
-    if instance.EnableMovement.CurrentValue and params.Event == 0:
-        if params.Key == "Up":
-            instance.yPosSlider.CurrentValue -= 1
-        if params.Key == "Down":
-            instance.yPosSlider.CurrentValue += 1
-        if params.Key == "Left":
-            instance.xPosSlider.CurrentValue -= 1
-        if params.Key == "Right":
-            instance.xPosSlider.CurrentValue += 1
-        if params.Key == "MouseScrollUp":
-            instance.SizeSlider.CurrentValue += 1
-        if params.Key == "MouseScrollDown":
-            instance.SizeSlider.CurrentValue -= 1
-    return True
+# Used for moving the timer while the hud is up
+@hook("WillowGame.WillowUIInteraction:InputKey")
+def RechargeTimerMoveKeys(
+    obj: UObject,
+    args: WrappedStruct,
+    ret: Any,
+    func: BoundFunction,
+) -> None:
+    if EnableMovement.value and args.Event == EInputEvent.IE_Pressed:
+        if args.Key == "Up":
+            yPosSlider.value -= 1
+        elif args.Key == "Down":
+            yPosSlider.value += 1
+        elif args.Key == "Left":
+            xPosSlider.value -= 1
+        elif args.Key == "Right":
+            xPosSlider.value += 1
+        elif args.Key == "MouseScrollUp":
+            SizeSlider.value += 1
+        elif args.Key == "MouseScrollDown":
+            SizeSlider.value -= 1
+        else:
+            return
+        mod.save_settings()
 
 
-def RechargeTimerPlayerDamaged(caller: UObject, function: UFunction, params: FStruct) -> bool:
-    if instance.OnlyWithRoidShield.CurrentValue:
-        if instance.ShieldRoidValue.GetValue(caller.Controller)[0] == 0.:
-            return True
+@hook("WillowGame.WillowPlayerController:AddHUDDamageIndicator")
+def RechargeTimerPlayerDamaged(
+    obj: UObject,
+    args: WrappedStruct,
+    ret: Any,
+    func: BoundFunction,
+) -> None:
+    global TimeRemaining, LastDamageTakenTime
+    if OnlyWithRoidShield.value:
+        if unrealsdk.find_object("AttributeDefinition", SHIELD_ROID_VALUE).GetValue(obj)[0] == 0.:
+            return
 
-    instance.LastDamageTakenTime = caller.WorldInfo.TimeSeconds
-    if (not instance.OnlyWhenDepleted.CurrentValue) or (params.Damage >= instance.ShieldCurValue.GetValue(caller)[0]) \
-            and (instance.TimeRemaining <= 0):
-        instance.TimeRemaining = 1
-        RunHook("WillowGame.WillowGameViewportClient.PostRender", "PostRenderRechargeTimer", onPostRenderRechargeTimer)
-        RunHook("WillowGame.WillowPlayerController.PlayerTick", "RechargeTimerPlayerTicks", RechargeTimerPlayerTicks)
-    return True
+    LastDamageTakenTime = obj.WorldInfo.TimeSeconds
+    shieldCurValue = unrealsdk.find_object("ResourcePoolAttributeDefinition", SHIELD_CUR_VALUE)
+    shieldDepleted = not args.bShieldOnlyDamage or shieldCurValue.GetValue(obj.Pawn)[0] <= 0
+    if (not OnlyWhenDepleted.value) or shieldDepleted and (TimeRemaining <= 0):
+        TimeRemaining = 1
+        onPostRenderRechargeTimer.enable()
+        RechargeTimerPlayerTicks.enable()
 
 
-def GetTimeUntilShieldRecharge(PC) -> float:
-    try:
-        # resets timer if you quit whilst your shield is recharging and switch character
-        elapsedTime = PC.MyWillowPawn.WorldInfo.TimeSeconds - instance.LastDamageTakenTime
-        if elapsedTime < 0:
-            return 0.
-    except AttributeError:
+def GetTimeUntilShieldRecharge(PC: UObject) -> float:
+    if PC.MyWillowPawn is None:
         return 0.
 
-    return round(instance.ShieldRegenDelay.GetValue(PC)[0] - elapsedTime, 1)
+    elapsedTime = PC.MyWillowPawn.WorldInfo.TimeSeconds - LastDamageTakenTime
+    if elapsedTime < 0:
+        return 0.
+
+    shieldRegenDelay = unrealsdk.find_object("ResourcePoolAttributeDefinition", SHIELD_REGEN_DELAY)
+    return round(shieldRegenDelay.GetValue(PC)[0] - elapsedTime, 1)
 
 
-def RechargeTimerPlayerTicks(caller: UObject, function: UFunction, params: FStruct) -> bool:
-    rechargeTime = GetTimeUntilShieldRecharge(caller)
-    instance.TimeRemaining = rechargeTime
+@hook("WillowGame.WillowPlayerController:PlayerTick")
+def RechargeTimerPlayerTicks(
+    obj: UObject,
+    args: WrappedStruct,
+    ret: Any,
+    func: BoundFunction,
+) -> None:
+    global TimeRemaining
+    rechargeTime = GetTimeUntilShieldRecharge(obj)
+    TimeRemaining = rechargeTime
     if rechargeTime <= 0:
-        RemoveHook("WillowGame.WillowPlayerController.PlayerTick", "RechargeTimerPlayerTicks")
-        RemoveHook("WillowGame.WillowGameViewportClient.PostRender", "PostRenderRechargeTimer")
-    return True
+        RechargeTimerPlayerTicks.disable()
+        onPostRenderRechargeTimer.disable()
 
 
-def onPostRenderRechargeTimer(caller: UObject, function: UFunction, params: FStruct) -> bool:
-    instance.displayFeedback(params)
-    return True
+@hook("WillowGame.WillowGameViewportClient:PostRender")
+def onPostRenderRechargeTimer(
+    obj: UObject,
+    args: WrappedStruct,
+    ret: Any,
+    func: BoundFunction,
+) -> None:
+    displayFeedback(args)
 
 
-class ShieldRechargeTimer(SDKMod):
-    Name: str = "Shield Recharge Timer"
-    Author: str = "LaryIsland"
-    Description: str = (
-        "<font size='26' color='#de5b00'>     Shield Recharge Timer</font>\n\n"
-        "Displays a configurable timer on your HUD that counts the seconds before your shield starts to recharge.\n\n"
+def DisplayText(canvas: UObject, text: float, x: float, y: float, color: tuple[float, float, float, float],
+                scalex: float, scaley: float) -> None:
+    fontindex = FontChoice.choices.index(FontChoice.value)
+    canvas.Font = unrealsdk.find_object("Font", Fonts[fontindex])
+
+    trueX = canvas.SizeX * x
+    trueY = canvas.SizeY * y
+
+    canvas.SetPos(trueX, trueY, 0)
+    canvas.SetDrawColorStruct(unrealsdk.make_struct("Color", B=color[0], G=color[1], R=color[2], A=color[3]))
+    canvas.DrawText(str(text), True, scalex, scaley)
+
+
+def displayFeedback(params: WrappedStruct) -> None:
+    PC = get_pc()
+    if not params.Canvas:
+        return
+
+    if PC.GetHUDMovie() is None or PC.bViewingThirdPersonMenu:
+        if not PC.GFxUIManager.IsMoviePlaying(PC.PauseMenuDefinition) or not ShowInMenu.value:
+            return
+
+    if PC.MyWillowPawn is None or PC.MyWillowPawn.IsInjured() or PC.MyWillowPawn.DrivenVehicle is not None:
+        return
+
+    canvas = params.Canvas
+    DisplayText(
+        canvas,
+        TimeRemaining,
+        xPosSlider.value / 1000,
+        yPosSlider.value / 1000,
+        (
+            BlueSlider.value,
+            GreenSlider.value,
+            RedSlider.value,
+            AlphaSlider.value
+        ),
+        SizeSlider.value / 100,
+        SizeSlider.value / 100
     )
-    Version: str = "1.0"
-
-    SupportedGames: Game = Game.BL2 | Game.TPS
-    Types: ModTypes = ModTypes.Utility
-    SaveEnabledState: EnabledSaveType = EnabledSaveType.LoadOnMainMenu
-
-    SettingsInputs = SDKMod.SettingsInputs.copy()
-    SettingsInputs["G"] = "GitHub"
-
-    def SettingsInputPressed(self, action: str) -> None:
-        if action == "GitHub":
-            webbrowser.open("https://github.com/LaryIsland/bl-sdk-mods/tree/main/ShieldRechargeTimer")
-        else:
-            super().SettingsInputPressed(action)
-
-    TimeRemaining: float = 0.
-    LastDamageTakenTime: float = 0.
-
-    def __init__(self) -> None:
-        self.Options = []
-        self.RedSlider = Options.Slider(
-            Caption="Red",
-            Description="Red value for the text colour.",
-            StartingValue=0,
-            MinValue=0,
-            MaxValue=255,
-            Increment=1,
-            IsHidden=False
-        )
-        self.GreenSlider = Options.Slider(
-            Caption="Green",
-            Description="Green value for the text colour.",
-            StartingValue=160,
-            MinValue=0,
-            MaxValue=255,
-            Increment=1,
-            IsHidden=False
-        )
-        self.BlueSlider = Options.Slider(
-            Caption="Blue",
-            Description="Blue value for the text colour.",
-            StartingValue=255,
-            MinValue=0,
-            MaxValue=255,
-            Increment=1,
-            IsHidden=False
-        )
-        self.AlphaSlider = Options.Slider(
-            Caption="Alpha",
-            Description="Alpha value for the text colour.",
-            StartingValue=255,
-            MinValue=0,
-            MaxValue=255,
-            Increment=1,
-            IsHidden=False
-        )
-        self.TextColour = Options.Nested(
-            Caption="Text Colour",
-            Description="Text colour for the recharge timer.",
-            Children=[self.RedSlider, self.GreenSlider, self.BlueSlider, self.AlphaSlider],
-            IsHidden=False
-        )
-        self.SizeSlider = Options.Slider(
-            Caption="Timer Size",
-            Description="Timer scaling as a percentage.",
-            StartingValue=120,
-            MinValue=50,
-            MaxValue=500,
-            Increment=1,
-            IsHidden=False
-        )
-        self.xPosSlider = Options.Slider(
-            Caption="X Position",
-            Description="X position for the timer as a percentage of the total screen.",
-            StartingValue=112,
-            MinValue=0,
-            MaxValue=1000,
-            Increment=1,
-            IsHidden=False
-        )
-        self.yPosSlider = Options.Slider(
-            Caption="Y Position",
-            Description="Y position for the timer as a percentage of the total screen.",
-            StartingValue=484,
-            MinValue=0,
-            MaxValue=1000,
-            Increment=1,
-            IsHidden=False
-        )
-        self.TimerPos = Options.Nested(
-            Caption="Timer Position",
-            Description="Text position for the recharge timer.",
-            Children=[self.xPosSlider, self.yPosSlider],
-            IsHidden=False
-        )
-        self.FontChoice = Options.Spinner(
-            Caption="Font",
-            Description="Use this to pick your font.",
-            StartingValue="WillowBody",
-            Choices=["WillowBody",
-                     "WillowHead",
-                     "HUD",
-                     "Engine 1",
-                     "Engine 2"]
-        )
-        self.ShowInMenu = Options.Boolean(
-            Caption="Show in Pause Menu",
-            Description="When enabled, the timer will still show in the pause menu.",
-            StartingValue=False,
-        )
-        self.EnableMovement = Options.Boolean(
-            Caption="Enable Movement Keys",
-            Description="When enabled, the arrow keys will move the timer and the scrollwheel will change its size.",
-            StartingValue=False,
-        )
-        self.OnlyWhenDepleted = Options.Boolean(
-            Caption="Only when Depleted",
-            Description="When enabled, the timer will only show when the shield is fully depleted.",
-            StartingValue=False,
-        )
-        self.OnlyWithRoidShield = Options.Boolean(
-            Caption="Only with Roid Shield",
-            Description="When enabled, the timer will only show when you have a roid shield equipped.",
-            StartingValue=False,
-        )
-        self.Options = [
-            self.TextColour,
-            self.TimerPos,
-            self.SizeSlider,
-            self.FontChoice,
-            self.EnableMovement,
-            self.ShowInMenu,
-            self.OnlyWhenDepleted,
-            self.OnlyWithRoidShield
-        ]
-
-    def DisplayText(self, canvas, text, x, y, color, scalex, scaley) -> None:
-        fontindex = self.FontChoice.Choices.index(self.FontChoice.CurrentValue)
-        canvas.Font = FindObject("Font", self.Fonts[fontindex])
-
-        trueX = canvas.SizeX * x
-        trueY = canvas.SizeX * y
-
-        canvas.SetPos(trueX, trueY, 0)
-
-        try:
-            canvas.SetDrawColorStruct(color)
-        except Exception:
-            pass
-
-        canvas.DrawText(str(text), True, scalex, scaley)
-
-    def displayFeedback(self, params):
-        PC = GetEngine().GamePlayers[0].Actor
-        if not params.Canvas:
-            return True
-
-        if PC.GetHUDMovie() is None or PC.bViewingThirdPersonMenu:
-            if not PC.GFxUIManager.IsMoviePlaying(PC.PauseMenuDefinition) or not self.ShowInMenu.CurrentValue:
-                return True
-
-        if PC.MyWillowPawn.IsInjured() or PC.MyWillowPawn.DrivenVehicle is not None:
-            return True
-
-        canvas = params.Canvas
-        self.DisplayText(
-            canvas,
-            self.TimeRemaining,
-            self.xPosSlider.CurrentValue / 1000,
-            self.yPosSlider.CurrentValue / 1000,
-            (
-                self.BlueSlider.CurrentValue,
-                self.GreenSlider.CurrentValue,
-                self.RedSlider.CurrentValue,
-                self.AlphaSlider.CurrentValue
-            ),
-            self.SizeSlider.CurrentValue / 100,
-            self.SizeSlider.CurrentValue / 100
-        )
-        return True
-
-    def Enable(self):
-        RunHook("WillowGame.WillowPlayerPawn.TakeDamage", "RechargeTimerPlayerDamaged", RechargeTimerPlayerDamaged)
-        RunHook("WillowGame.WillowUIInteraction.InputKey", "RechargeTimerMoveKeys", RechargeTimerMoveKeys)
-        self.ShieldRegenDelay = FindObject(
-            "ResourcePoolAttributeDefinition",
-            "D_Attributes.ShieldResourcePool.ShieldOnIdleRegenerationDelay"
-        )
-        self.ShieldCurValue = FindObject(
-            "ResourcePoolAttributeDefinition",
-            "D_Attributes.ShieldResourcePool.ShieldCurrentValue"
-        )
-        self.ShieldRoidValue = FindObject(
-            "AttributeDefinition",
-            "D_Attributes.Shield.RoidMeleeDamage"
-        )
-        self.Fonts = [
-            "UI_Fonts.Font_Willowbody_18pt",
-            "UI_Fonts.Font_Willowhead_8pt",
-            "UI_Fonts.Font_Hud_Medium",
-            "EngineFonts.SmallFont",
-            "EngineFonts.TinyFont"
-        ]
-
-    def Disable(self):
-        RemoveHook("WillowGame.WillowGameViewportClient.PostRender", "PostRenderRechargeTimer")
-        RemoveHook("WillowGame.WillowPlayerPawn.TakeDamage", "RechargeTimerPlayerDamaged")
 
 
-instance = ShieldRechargeTimer()
+def onDisable() -> None:
+    global TimeRemaining
+    onPostRenderRechargeTimer.disable()
+    RechargeTimerPlayerTicks.disable()
+    # Otherwise a timer stopped part way would stop "Only when Depleted" from ever starting the next one
+    TimeRemaining = 0.
 
-if __name__ == "__main__":
-    Log(f"[{instance.Name}] Manually loaded")
-    for mod in Mods:
-        if mod.Name == instance.Name:
-            if mod.IsEnabled:
-                mod.Disable()
-            Mods.remove(mod)
-            Log(f"[{instance.Name}] Removed last instance")
 
-            # Fixes inspect.getfile()
-            instance.__class__.__module__ = mod.__class__.__module__
-            break
-
-RegisterMod(instance)
+mod = build_mod(
+    coop_support=CoopSupport.ClientSide,
+    options=[TextColour, TimerPos, SizeSlider, FontChoice, EnableMovement, ShowInMenu, OnlyWhenDepleted,
+             OnlyWithRoidShield],
+    hooks=[RechargeTimerPlayerDamaged, RechargeTimerMoveKeys],
+    on_disable=onDisable
+)
+mod.description = "<font size='26' color='#de5b00'>     Shield Recharge Timer</font>\n\n" + mod.description
